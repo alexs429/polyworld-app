@@ -1,6 +1,6 @@
 {
-  "projects": {    
-    "default": "poliworld-dev",
+  "projects": {
+    "default": "poliworld-f165b",
     "poliworld-dev": "poliworld-f165b"
   },
   "targets": {},

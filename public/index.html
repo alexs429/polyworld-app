@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Polyworld - MetaMask Auth</title>
+</head>
+<body>
+  <h1>🔥 Welcome, Traveller!</h1>
+  <button id="connectButton">Connect MetaMask</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    const connectButton = document.getElementById('connectButton');
+
+    connectButton.onclick = async () => {
+  if (typeof window.ethereum === 'undefined') {
+    alert('MetaMask not detected!');
+    return;
+  }
+
+  try {
+    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+    const address = accounts[0];
+    const message = `Sign in to Polyworld as ${address}`;
+    const signature = await ethereum.request({
+      method: 'personal_sign',
+      params: [message, address],
+    });
+
+    const res = await axios.post(
+      'https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask',
+      { address, message, signature }
+    );
+
+    const { travellerId, isNew } = res.data;
+
+    if (isNew) {
+      alert(`Welcome, Traveller!`);
+    } else {
+      alert(`Welcome back, Traveller!`);
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert('Authentication failed');
+  }
+};
+
+  </script>
+</body>
+</html>

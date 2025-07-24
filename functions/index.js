@@ -39,5 +39,8 @@ exports.summarizeSession = require('./sessions/summarizeSession').summarizeSessi
 // 🧪 Seeder
 exports.seedAll = require('./seed/seedAll').seedAll;
 
+// Metamask
+exports.authenticateMetamask = require('./metamask/authenticateMetamask').authenticateMetamask;
+
 // 🚧 Future Express API grouping (optional)
 // exports.api = require('./api');
