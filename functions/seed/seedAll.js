@@ -36,6 +36,27 @@ const handler = functions.https.onRequest(async (_req, res) => {
     status: 'active'
   });
 
+    async function seedPolistarToken() {
+    const tokenRef = db.collection("tokens").doc("POLISTAR");
+
+    await tokenRef.set({
+      name: "Polyworld Internal Token",
+      symbol: "POLISTAR",
+      totalSupply: 980000000,
+      creator: "0xPolyworldTreasury",
+      swappable: true,
+      withdrawable: true,
+      symbolic: false,
+      bridge_to: ["POLI", "USDT", "ETH"],
+      mintAuthority: ["0xPolyworldTreasury"]
+    });
+
+    console.log("✅ POLISTAR token seeded.");
+  }
+
+  seedPolistarToken().catch(console.error);
+
+
   res.status(200).send('Seed data created');
 });
 

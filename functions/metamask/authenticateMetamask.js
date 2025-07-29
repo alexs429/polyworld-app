@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const { admin } = require('../firebase');
-const { verifyMessage } = require('ethers');
+const { ethers } = require('ethers');
 const cors = require('cors')({ origin: true });
 
 const db = admin.firestore();
@@ -15,7 +15,7 @@ exports.authenticateMetamask = functions.https.onRequest((req, res) => {
         return res.status(400).send('Missing parameters');
       }
 
-      const recoveredAddress = verifyMessage(message, signature);
+      const recoveredAddress = ethers.utils.verifyMessage(message, signature);
       console.log('✅ Recovered address:', recoveredAddress);
 
       if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {

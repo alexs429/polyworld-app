@@ -1,28 +1,52 @@
-// File: functions/utils/dialogflow.js
-
-const axios = require('axios');
-const dotenv = require('dotenv');
-dotenv.config(); // ← place this safely, not repeatedly in modules
-
-const DIALOGFLOW_WEBHOOK = process.env.DIALOGFLOW_WEBHOOK_URL || 'https://dialogflow.googleapis.com/v3/projects/YOUR_PROJECT_ID/locations/global/agents/YOUR_AGENT_ID/sessions';
+const { v4: uuidv4 } = require('uuid');
 
 exports.sendToDialogflow = async (userAddress, message) => {
-  const sessionId = userAddress.slice(2, 10); // Example: deterministic session ID
+  console.log("💬 sendToDialogflow called");
 
-  // Replace with actual Dialogflow CX request structure
-  const response = await axios.post(`${DIALOGFLOW_WEBHOOK}/${sessionId}:detectIntent`, {
-    queryInput: {
-      text: {
-        text: message,
-        languageCode: 'en'
-      }
-    }
-  }, {
-    headers: {
-      Authorization: `Bearer ${process.env.DIALOGFLOW_TOKEN}`,
-      'Content-Type': 'application/json'
-    }
-  });
+  try {
+    const { SessionsClient } = require('@google-cloud/dialogflow-cx'); // Lazy import
 
-  return response.data.fulfillmentText || 'No response';
+    const projectId = process.env.DFX_PROJECT_ID;
+    const location = process.env.DFX_LOCATION || 'australia-southeast1';
+    const agentId = process.env.DFX_AGENT_ID;
+    const languageCode = 'en';
+
+    const sessionId = userAddress.slice(2, 10);
+
+    const sessionClient = new SessionsClient({
+          apiEndpoint: `${location}-dialogflow.googleapis.com`  // ✅ explicit endpoint
+          });
+
+    console.log("📍 DFX Config at runtime:", {
+      projectId,
+      location,
+      agentId,
+      sessionId
+    });
+
+    const sessionPath = sessionClient.projectLocationAgentSessionPath(
+      projectId,
+      location,
+      agentId,
+      sessionId
+    );
+
+    const request = {
+      session: sessionPath,
+      queryInput: {
+        text: {
+          text: message,
+        },
+        languageCode,
+      },
+    };
+
+    const [response] = await sessionClient.detectIntent(request);
+    //console.log("📦 Raw Dialogflow CX response:", JSON.stringify(response, null, 2));
+    return response.textResponses?.[0]?.text || '[No response from Ember]';
+
+  } catch (err) {
+    console.error("🔥 sendToDialogflow error:", err.message);
+    return '[Error: Ember failed to respond]';
+  }
 };

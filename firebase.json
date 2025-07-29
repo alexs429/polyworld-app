@@ -7,6 +7,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "engines": {
+    "node": "18"
+  },
   "emulators": {
     "functions": {
       "port": 5001

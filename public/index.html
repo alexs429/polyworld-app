@@ -1,50 +1,290 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Polyworld - MetaMask Auth</title>
-</head>
-<body>
-  <h1>🔥 Welcome, Traveller!</h1>
-  <button id="connectButton">Connect MetaMask</button>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polyworld Host Interface</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <script>
-    const connectButton = document.getElementById('connectButton');
-
-    connectButton.onclick = async () => {
-  if (typeof window.ethereum === 'undefined') {
-    alert('MetaMask not detected!');
-    return;
-  }
-
-  try {
-    const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-    const address = accounts[0];
-    const message = `Sign in to Polyworld as ${address}`;
-    const signature = await ethereum.request({
-      method: 'personal_sign',
-      params: [message, address],
-    });
-
-    const res = await axios.post(
-      'https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask',
-      { address, message, signature }
-    );
-
-    const { travellerId, isNew } = res.data;
-
-    if (isNew) {
-      alert(`Welcome, Traveller!`);
-    } else {
-      alert(`Welcome back, Traveller!`);
+  <style>
+    body {
+      background-image: url('/images/background.jpg');
+      background-size: cover;
+      background-position: center;
+      overflow: hidden;
     }
 
-  } catch (err) {
-    console.error(err);
-    alert('Authentication failed');
-  }
-};
+    .particle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.5);
+      border-radius: 9999px;
+      animation: drift 10s linear infinite;
+    }
 
+    @keyframes drift {
+      0% {
+        transform: translateY(0) translateX(0);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-100vh) translateX(20vw);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between text-white relative">
+  <div id="welcomeMessage" class="absolute top-6 w-full text-center text-2xl font-semibold text-white drop-shadow-xl animate-fade-in">
+    ✨ Welcome, Traveller. Your flame is near…
+  </div>
+
+
+  <div id="particles"></div>
+
+  <div class="flex justify-between p-4">
+    <div class="w-1/4 aspect-video rounded-2xl overflow-hidden shadow-xl border border-white">
+      <video id="userCamera" autoplay muted class="w-full h-full object-cover"></video>
+    </div>
+
+    <div id="balancePanel" class="w-1/4 text-right hidden">
+      <div class="bg-black/70 p-4 rounded-2xl shadow-xl border border-gray-500">
+        <h2 class="text-lg font-semibold mb-2">Your Balance</h2>
+        <p>POLI (withdrawable): <span id="poliBalance" class="font-bold">—</span></p>
+        <p>POLISTAR: <span id="polistarBalance" class="font-bold">—</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-1 flex flex-col items-center justify-center space-y-4">
+    <div class="w-64 h-64 rounded-full overflow-hidden shadow-xl border-4 border-white animate-pulse bg-black/40 drop-shadow-[0_0_20px_rgba(255,255,255,0.6)]">
+      <img id="emberAvatar" src="/images/ember-avatar.png" alt="Host Animation" class="w-full h-full object-cover" />
+    </div>
+
+    <div id="chatArea" class="flex flex-col items-center space-y-2"></div>
+
+    <div class="w-2/3 max-w-xl transition duration-500 ease-in-out">
+      <input
+        id="userPrompt"
+        type="text"
+        placeholder="Ask your question..."
+        class="w-full px-4 py-3 text-black rounded-2xl shadow-inner outline-none"
+      />
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('userCamera');
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error('Camera access denied:', err);
+      });
+
+    let firstResponseSent = false;
+    const promptInput = document.getElementById("userPrompt");
+    const chatArea = document.getElementById("chatArea");
+
+    promptInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.keyCode === 13) {
+        const inputValue = this.value.trim();
+        if (!inputValue) return;
+
+        if (!firstResponseSent) {
+          firstResponseSent = true;
+          setTimeout(initiateMetaMaskLogin, 15000);
+        }
+
+        triggerEmberSpeaking();
+        renderHostReply(`I hear you… '${inputValue}'.`);
+        this.value = "";
+      }
+    });
+
+    function typeWelcomeMessage(text) {
+  const element = document.getElementById('welcomeMessage');
+  element.textContent = ""; // Clear it
+
+  let i = 0;
+  const speed = 40; // ms per letter
+
+  const typer = setInterval(() => {
+    if (i < text.length) {
+      element.textContent += text.charAt(i);
+      i++;
+    } else {
+      clearInterval(typer);
+    }
+  }, speed);
+}
+
+    function speakWithEmber(text) {
+  const speak = () => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.1;
+    utterance.pitch = 1.1;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('female')) ||
+                      voices.find(v => v.lang.includes('en-GB')) ||
+                      voices.find(v => v.name.toLowerCase().includes('female')) ||
+                      voices[0];
+
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onstart = () => {
+      document.getElementById('emberAvatar').src = '/images/ember-avatar.gif';
+    };
+    utterance.onend = () => {
+      document.getElementById('emberAvatar').src = '/images/ember-avatar.png';
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Handle voice loading
+  if (window.speechSynthesis.getVoices().length > 0) {
+    speak();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => speak();
+  }
+}
+
+    function renderHostReply(text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'bg-black/60 px-4 py-2 rounded-2xl max-w-md text-center text-white shadow-lg animate-fade-in';
+      bubble.textContent = text;
+      chatArea.appendChild(bubble);
+
+      speakWithEmber(text); // 🔊 Ember speaks here
+    }
+
+    function triggerEmberSpeaking() {
+      const avatar = document.getElementById('emberAvatar');
+      avatar.src = '/images/ember-avatar.gif';
+      setTimeout(() => {
+        avatar.src = '/images/ember-avatar.png';
+      }, 3000);
+    }
+
+    async function initiateMetaMaskLogin() {
+      if (!window.ethereum || !window.ethereum.isMetaMask) {
+        alert("MetaMask not detected. Please install MetaMask from https://metamask.io.");
+        return;
+      }
+
+      try {
+        const provider = window.ethereum;
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No MetaMask accounts found.");
+        }
+
+        const address = accounts[0];
+        const message = `Sign in to Polyworld as ${address}`;
+        const signature = await ethereum.request({
+          method: 'personal_sign',
+          params: [message, address],
+        });
+
+        const res = await axios.post(
+          'https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask',
+          { address, message, signature }
+        );
+
+        const { travellerId, isNew } = res.data;
+
+
+        console.log("MetaMask connected:", address);
+        
+        const displayMessage = isNew ? "✨ Welcome, Traveller!" : "✨ Welcome back, Traveller!";
+        typeWelcomeMessage(displayMessage);
+
+        
+        document.getElementById("balancePanel").classList.remove("hidden");
+
+        try {
+
+          const [polistarRes, poliRes] = await Promise.all([
+            fetch("https://us-central1-poliworld-f165b.cloudfunctions.net/getPolistarBalance", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address })
+            }),
+            fetch("https://us-central1-poliworld-f165b.cloudfunctions.net/getPoliBalance", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ address })
+            })
+
+          ]);
+
+          const polistar = await polistarRes.json();
+          const poli = await poliRes.json();
+
+          const poliEl = document.getElementById("poliBalance");
+          const polistarEl = document.getElementById("polistarBalance");
+
+          const formattedPoli = Math.floor(Number(poli.amount));
+          const formattedPolistar = Math.floor(Number(polistar.amount));
+
+          if (poliEl) poliEl.textContent = formattedPoli;
+          if (polistarEl) polistarEl.textContent = formattedPolistar;
+
+          const message = isNew
+            ? "Welcome, Traveller. Your POLI balance is now available."
+            : "Welcome back, Traveller. Your POLI balance is now available.";
+
+          speakWithEmber(message);
+
+        } catch (err) {
+          console.error("Balance fetch failed:", err);
+        }
+
+
+      } catch (error) {
+        console.error("MetaMask login failed:", error);
+        alert("MetaMask connection failed. Please try again.");
+      }
+    }
+
+    function speakEmberIntro() {
+      const introText = "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen.";
+      const utterance = new SpeechSynthesisUtterance(introText);
+      utterance.rate = 1.1;
+      utterance.pitch = 1.1;
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('female')) ||
+                        voices.find(v => v.lang.includes('en-GB')) ||
+                        voices.find(v => v.name.toLowerCase().includes('female')) ||
+                        voices[0];
+
+      if (preferred) utterance.voice = preferred;
+      window.speechSynthesis.speak(utterance);
+      renderHostReply(introText);
+    }
+
+    window.speechSynthesis.onvoiceschanged = () => {
+      setTimeout(speakEmberIntro, 2000);
+    };
+
+    const particlesContainer = document.getElementById('particles');
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.top = Math.random() * window.innerHeight + 'px';
+      p.style.left = Math.random() * window.innerWidth + 'px';
+      p.style.animationDuration = 6 + Math.random() * 10 + 's';
+      particlesContainer.appendChild(p);
+    }
   </script>
 </body>
 </html>
