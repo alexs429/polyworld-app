@@ -37,12 +37,23 @@ exports.getAllSessionsByUser = require('./sessions/getAllSessionsByUser').getAll
 exports.getSessionById = require('./sessions/getSessionById').getSessionById;
 exports.summarizeSession = require('./sessions/summarizeSession').summarizeSession;
 
+// WEB3 functions
+exports.transferPoliToUser = require('./web3/transferPoliToUser').transferPoliToUser;
+exports.spendPoliFromUser = require('./web3/spendPoliFromUser').spendPoliFromUser;
+exports.handleUsdtPayment = require('./web3/handleUsdtPayment').handleUsdtPayment;
+exports.getPoliBalance = require('./web3/getPoliBalance').getPoliBalance;
+exports.getUsdtBalance = require('./web3/getUsdtBalance').getUsdtBalance;
 
 // 🔁 RANDL Protocol Exports
 exports.createToken = require('./randl/handlers/createToken').createToken;
 exports.mintToken = require('./randl/handlers/mintToken').mintToken;
 exports.transferToken = require('./randl/handlers/transferToken').transferToken;
 exports.burnToken = require('./randl/handlers/burnToken').burnToken;
+exports.rewardPolistar = require('./randl/handlers/rewardPolistar').rewardPolistar;
+exports.spendPolistar = require('./randl/handlers/spendPolistar').spendPolistar;
+exports.getPolistarBalance = require('./randl/handlers/getPolistarBalance').getPolistarBalance;
+exports.getTokenList = require('./randl/handlers/getTokenList').getTokenList;
+
 
 // CHAT HANDLER
 exports.chatHandler = require('./handlers/chatHandler').chatHandler;
@@ -54,14 +65,13 @@ exports.withdrawPoliFromRANDL = require("./bridge/withdrawPoliFromRANDL").withdr
 
 // 🧪 Seeder
 exports.seedAll = require('./seed/seedAll').seedAll;
+exports.seedSystemConfig = require('./seed/seedSystemConfig').seedSystemConfig;
 
-// Utils
-exports.getPolistarBalance = require('./utils/getPolistarBalance').getPolistarBalance;
-exports.getPoliBalance = require('./utils/getPoliBalance').getPoliBalance;
 
 
 // Metamask
 exports.authenticateMetamask = require('./metamask/authenticateMetamask').authenticateMetamask;
+
 
 // Symbolic
 exports.inscribeSymbolicEvent = require("./symbolic/inscribe").inscribeSymbolicEvent;

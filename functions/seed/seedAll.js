@@ -52,6 +52,8 @@ const handler = functions.https.onRequest(async (_req, res) => {
     });
 
     console.log("✅ POLISTAR token seeded.");
+  
+    
   }
 
   seedPolistarToken().catch(console.error);

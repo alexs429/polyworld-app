@@ -1,290 +1,1271 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Polyworld Host Interface</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <style>
-    body {
-      background-image: url('/images/background.jpg');
-      background-size: cover;
-      background-position: center;
-      overflow: hidden;
-    }
-
-    .particle {
-      position: absolute;
-      width: 6px;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.5);
-      border-radius: 9999px;
-      animation: drift 10s linear infinite;
-    }
-
-    @keyframes drift {
-      0% {
-        transform: translateY(0) translateX(0);
-        opacity: 1;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polyworld Host Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+      body {
+        background-image: url("/images/background.jpg");
+        background-size: cover;
+        background-position: center;
+        overflow: hidden;
       }
-      100% {
-        transform: translateY(-100vh) translateX(20vw);
+
+      .particle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 9999px;
+        animation: drift 10s linear infinite;
+      }
+
+      @keyframes drift {
+        0% {
+          transform: translateY(0) translateX(0);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(-100vh) translateX(20vw);
+          opacity: 0;
+        }
+      }
+      /* Light glowing scrollbar */
+      #chatArea::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      #chatArea::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      #chatArea::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      /* Firefox support */
+      #chatArea {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+      }
+
+      #talkToPolistarBtn span {
+        pointer-events: none;
+      }
+
+      .coin-explosion {
+        animation: firework-burst 0.8s ease-out forwards;
         opacity: 0;
+        transform: scale(0.5) rotate(0deg);
       }
-    }
-  </style>
-</head>
-<body class="h-screen w-screen flex flex-col justify-between text-white relative">
-  <div id="welcomeMessage" class="absolute top-6 w-full text-center text-2xl font-semibold text-white drop-shadow-xl animate-fade-in">
-    ✨ Welcome, Traveller. Your flame is near…
-  </div>
 
+      @keyframes firework-burst {
+        0% {
+          opacity: 0;
+          transform: scale(0.5) rotate(0deg) translateY(0);
+          filter: brightness(0.8);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.5) rotate(20deg) translateY(-10px);
+          filter: brightness(1.2);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(2.2) rotate(720deg) translateY(-30px);
+          filter: brightness(2);
+        }
+      }
+      @keyframes bounce-swap {
+        0%,
+        100% {
+          transform: translateX(0);
+          opacity: 0.8;
+        }
+        50% {
+          transform: translateX(30px);
+          opacity: 1;
+        }
+      }
 
-  <div id="particles"></div>
+      .animate-bounce-swap {
+        animation: bounce-swap 1.6s infinite ease-in-out;
+      }
 
-  <div class="flex justify-between p-4">
-    <div class="w-1/4 aspect-video rounded-2xl overflow-hidden shadow-xl border border-white">
-      <video id="userCamera" autoplay muted class="w-full h-full object-cover"></video>
+      @keyframes emberPulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      .animate-ember {
+        animation: emberPulse 1.5s infinite ease-in-out;
+      }
+    </style>
+  </head>
+  <body
+    class="h-screen w-screen flex flex-col justify-between text-white relative"
+  >
+    <div
+      id="welcomeMessage"
+      class="absolute top-6 w-full text-center text-2xl font-semibold text-white drop-shadow-xl animate-fade-in"
+    >
+      ✨ Welcome, Traveller. Your flame is near…
     </div>
 
-    <div id="balancePanel" class="w-1/4 text-right hidden">
-      <div class="bg-black/70 p-4 rounded-2xl shadow-xl border border-gray-500">
-        <h2 class="text-lg font-semibold mb-2">Your Balance</h2>
-        <p>POLI (withdrawable): <span id="poliBalance" class="font-bold">—</span></p>
-        <p>POLISTAR: <span id="polistarBalance" class="font-bold">—</span></p>
+    <div id="particles"></div>
+
+    <div class="flex justify-between p-4">
+      <div
+        id="cameraBox"
+        class="w-1/4 h-[300px] rounded-2xl overflow-hidden shadow-xl border border-white"
+      >
+        <video
+          id="userCamera"
+          autoplay
+          muted
+          class="w-full h-full object-cover"
+        ></video>
+      </div>
+      <div
+        id="floatingReward"
+        class="fixed top-1/2 left-1/2 text-white text-2xl font-bold opacity-0 pointer-events-none transition-transform duration-1000 transform -translate-x-1/2 -translate-y-1/2 z-50"
+      ></div>
+      <div id="balancePanel" class="w-1/4 text-right hidden">
+        <div
+          class="relative bg-black/70 p-4 rounded-2xl shadow-xl border border-gray-500 space-y-2"
+        >
+          <h2 class="text-lg font-semibold">Your Balance</h2>
+          <div class="absolute top-3 left-3 flex flex-col items-start">
+            <img
+              src="/images/poli-logo.png"
+              alt="POLI"
+              class="w-20 h-20 object-contain drop-shadow-md"
+            />
+          </div>
+          <p>
+            USDT:
+            <span id="usdtBalance" class="font-bold">0.00</span>
+          </p>
+          <p>
+            POLI:
+            <span id="poliBalance" class="font-bold">0</span>
+          </p>
+          <p>POLISTAR: <span id="polistarBalance" class="font-bold">0</span></p>
+          <div id="withdrawableRow" class="hidden">
+            <p>
+              POLISTAR (withdrawable):
+              <span id="withdrawableBalance" class="font-bold">0</span>
+            </p>
+          </div>
+          <div
+            id="swapPanel"
+            class="mt-4 p-4 border border-gray-500 rounded-2xl bg-black/60 hidden"
+          >
+            <h3 class="text-md font-semibold mb-2">Token Swap</h3>
+            <div id="swapContent" class="text-sm">
+              <!-- dynamically filled -->
+            </div>
+          </div>
+
+          <!-- Status Message (typed out) -->
+          <div
+            id="sessionStatus"
+            class="text-left text-sm text-white/80 pt-2"
+          ></div>
+
+          <!-- Coin Splash Animation -->
+          <div
+            id="coinSplash"
+            class="absolute bottom-2 left-2 pointer-events-none z-50"
+          >
+            <span
+              class="coin-explosion text-yellow-300 font-bold text-lg"
+            ></span>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="flex-1 flex flex-col items-center justify-center space-y-4">
-    <div class="w-64 h-64 rounded-full overflow-hidden shadow-xl border-4 border-white animate-pulse bg-black/40 drop-shadow-[0_0_20px_rgba(255,255,255,0.6)]">
-      <img id="emberAvatar" src="/images/ember-avatar.png" alt="Host Animation" class="w-full h-full object-cover" />
+    <!-- Ember Avatar Panel -->
+    <div id="emberAvatarPanel" class="hidden flex justify-center gap-6 mb-4">
+      <!-- Ember: Financial Consultant -->
+      <div
+        data-img="images/ember-financial.png"
+        data-ember="financial"
+        class="emberOption flex flex-col items-center cursor-pointer"
+      >
+        <img
+          src="images/ember-financial.png"
+          class="w-32 h-32 rounded-full border-4 border-yellow-500 shadow-xl hover:scale-105 transition-transform"
+        />
+        <span class="mt-1 text-sm text-white">Finance</span>
+      </div>
+
+      <!-- Ember: Travel Guide -->
+      <div
+        data-img="images/ember-travel.png"
+        data-ember="travel"
+        class="emberOption flex flex-col items-center cursor-pointer"
+      >
+        <img
+          src="images/ember-travel.png"
+          class="w-32 h-32 rounded-full border-4 border-blue-500 shadow-xl hover:scale-105 transition-transform"
+        />
+        <span class="mt-1 text-sm text-white">Travel</span>
+      </div>
+
+      <!-- Ember: Psychologist -->
+      <div
+        data-img="images/ember-psychologist.png"
+        data-ember="psychologist"
+        class="emberOption flex flex-col items-center cursor-pointer"
+      >
+        <img
+          src="images/ember-psychologist.png"
+          class="w-32 h-32 rounded-full border-4 border-pink-500 shadow-xl hover:scale-105 transition-transform"
+        />
+        <span class="mt-1 text-sm text-white">Mind</span>
+      </div>
+    </div>
+    <div class="flex-1 flex flex-col items-center px-4 overflow-hidden">
+      <!-- Avatar stays fixed at the top -->
+      <div
+        id="activeAvatar"
+        class="relative w-64 h-64 rounded-full overflow-hidden shadow-xl border-4 border-white bg-black/40 mt-0 mb-2"
+      >
+        <img
+          id="activeAvatarImg"
+          src="/images/ember-avatar.png"
+          alt="Polistar Avatar"
+          class="w-full h-full object-cover"
+        />
+
+        <!-- Subtle Icon Button -->
+        <button
+          id="talkToPolistarBtn"
+          class="absolute bottom-2 right-2 z-10 bg-purple-700 hover:bg-purple-800 text-white text-2xl font-bold rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition group"
+          title="Talk to Polistar"
+        >
+          🔮
+          <span
+            class="absolute bottom-full mb-2 right-0 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap"
+          >
+            Talk to Polistar
+          </span>
+        </button>
+      </div>
+
+      <!-- Scrollable Chat Area -->
+      <div
+        id="chatArea"
+        class="flex flex-col flex-1 w-full max-w-2xl mt-4 mb-2 overflow-y-auto px-2 space-y-3"
+      >
+        <!-- messages appear here -->
+      </div>
+
+      <!-- Input + Button fixed at bottom -->
+      <div class="w-full max-w-2xl mb-6 space-y-2">
+        <input
+          id="userPrompt"
+          type="text"
+          placeholder="Ask your question..."
+          class="w-full px-4 py-3 text-black rounded-2xl shadow-inner outline-none"
+        />
+        <div
+          id="sessionStatus"
+          class="text-white text-sm font-mono text-center"
+        ></div>
+      </div>
     </div>
 
-    <div id="chatArea" class="flex flex-col items-center space-y-2"></div>
+    <!-- Firebase App -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-functions-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
-    <div class="w-2/3 max-w-xl transition duration-500 ease-in-out">
-      <input
-        id="userPrompt"
-        type="text"
-        placeholder="Ask your question..."
-        class="w-full px-4 py-3 text-black rounded-2xl shadow-inner outline-none"
-      />
-    </div>
-  </div>
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyBLFZuQxA4ZXemkkrKYa8lxDRJSQ3IpFjk",
+        authDomain: "poliworld-f165b.firebaseapp.com",
+        projectId: "poliworld-f165b",
+        storageBucket: "poliworld-f165b.appspot.com",
+        messagingSenderId: "855514360321",
+        appId: "1:855514360321:web:af5f26e5b6242f02e56e00",
+      };
 
-  <script>
-    const video = document.getElementById('userCamera');
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-      })
-      .catch(err => {
-        console.error('Camera access denied:', err);
-      });
+      firebase.initializeApp(firebaseConfig);
+    </script>
 
-    let firstResponseSent = false;
-    const promptInput = document.getElementById("userPrompt");
-    const chatArea = document.getElementById("chatArea");
+    <script>
+      let polistarRewardedAt1m = false;
+      let polistarRewardedAt3m = false;
+      let polistarStartTime = null;
+      let hasOfferedEmber = false;
+      let currentSpeaker = "polistar"; // or "financial", "travel", "psychologist"
 
-    promptInput.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" || e.keyCode === 13) {
-        const inputValue = this.value.trim();
-        if (!inputValue) return;
+      let emberBurnInterval = null;
 
-        if (!firstResponseSent) {
-          firstResponseSent = true;
-          setTimeout(initiateMetaMaskLogin, 15000);
-        }
+      function startEmberBurnLoop() {
+        if (emberBurnInterval) clearInterval(emberBurnInterval);
 
-        triggerEmberSpeaking();
-        renderHostReply(`I hear you… '${inputValue}'.`);
-        this.value = "";
-      }
-    });
+        emberBurnInterval = setInterval(async () => {
+          if (currentSpeaker !== "polistar") {
+            if (!window.currentTravellerId) {
+              console.warn("🛑 No Traveller ID. Skipping burn.");
+              return;
+            }
 
-    function typeWelcomeMessage(text) {
-  const element = document.getElementById('welcomeMessage');
-  element.textContent = ""; // Clear it
+            console.log("🔥 Burning 1 POLISTAR for Ember session...");
 
-  let i = 0;
-  const speed = 40; // ms per letter
+            const success = await burnPolistarToken(
+              window.currentTravellerId,
+              1,
+              `Auto-burn during ${currentSpeaker} session`
+            );
 
-  const typer = setInterval(() => {
-    if (i < text.length) {
-      element.textContent += text.charAt(i);
-      i++;
-    } else {
-      clearInterval(typer);
-    }
-  }, speed);
-}
-
-    function speakWithEmber(text) {
-  const speak = () => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.1;
-    utterance.pitch = 1.1;
-
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('female')) ||
-                      voices.find(v => v.lang.includes('en-GB')) ||
-                      voices.find(v => v.name.toLowerCase().includes('female')) ||
-                      voices[0];
-
-    if (preferred) utterance.voice = preferred;
-
-    utterance.onstart = () => {
-      document.getElementById('emberAvatar').src = '/images/ember-avatar.gif';
-    };
-    utterance.onend = () => {
-      document.getElementById('emberAvatar').src = '/images/ember-avatar.png';
-    };
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Handle voice loading
-  if (window.speechSynthesis.getVoices().length > 0) {
-    speak();
-  } else {
-    window.speechSynthesis.onvoiceschanged = () => speak();
-  }
-}
-
-    function renderHostReply(text) {
-      const bubble = document.createElement('div');
-      bubble.className = 'bg-black/60 px-4 py-2 rounded-2xl max-w-md text-center text-white shadow-lg animate-fade-in';
-      bubble.textContent = text;
-      chatArea.appendChild(bubble);
-
-      speakWithEmber(text); // 🔊 Ember speaks here
-    }
-
-    function triggerEmberSpeaking() {
-      const avatar = document.getElementById('emberAvatar');
-      avatar.src = '/images/ember-avatar.gif';
-      setTimeout(() => {
-        avatar.src = '/images/ember-avatar.png';
-      }, 3000);
-    }
-
-    async function initiateMetaMaskLogin() {
-      if (!window.ethereum || !window.ethereum.isMetaMask) {
-        alert("MetaMask not detected. Please install MetaMask from https://metamask.io.");
-        return;
+            if (success) {
+              speakWithEmber(
+                "1 POLISTAR has been spent to continue our conversation."
+              );
+              const updated = await getPolistarBalance(
+                window.currentTravellerId
+              );
+              updateBalanceDisplay(updated.balance, updated.withdrawable || 0);
+            }
+          }
+        }, 20000);
       }
 
-      try {
-        const provider = window.ethereum;
-        const accounts = await provider.request({ method: 'eth_requestAccounts' });
 
-        if (!accounts || accounts.length === 0) {
-          throw new Error("No MetaMask accounts found.");
+      function stopEmberBurnLoop() {
+        if (emberBurnInterval) {
+          clearInterval(emberBurnInterval);
+          emberBurnInterval = null;
+          console.log("🛑 Ember session ended. Burn loop stopped.");
         }
+      }
 
-        const address = accounts[0];
-        const message = `Sign in to Polyworld as ${address}`;
-        const signature = await ethereum.request({
-          method: 'personal_sign',
-          params: [message, address],
+      window.milestoneRewarded = {
+        "1min": false,
+        "3min": false,
+      };
+
+      const video = document.getElementById("userCamera");
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+        })
+        .catch((err) => {
+          console.error("Camera access denied:", err);
         });
 
-        const res = await axios.post(
-          'https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask',
-          { address, message, signature }
+      let firstResponseSent = false;
+      const promptInput = document.getElementById("userPrompt");
+      const chatArea = document.getElementById("chatArea");
+
+      promptInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.keyCode === 13) {
+          const inputValue = this.value.trim();
+          if (!inputValue) return;
+
+          if (inputValue.toLowerCase() === "hidecamera") {
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "hidden";
+              box.style.opacity = 0;
+              speakWithPolistar("Camera is now hidden.");
+            }
+            promptInput.value = "";
+            return;
+          }
+
+          if (inputValue.toLowerCase() === "showcamera") {
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "visible";
+              box.style.opacity = 1;
+              speakWithPolistar("Camera is now visible.");
+            }
+            promptInput.value = "";
+            return;
+          }
+
+          if (inputValue.toLowerCase() === "hidechat") {
+            chatArea.classList.add("invisible");
+            promptInput.value = "";
+            return;
+          }
+
+          if (inputValue.toLowerCase() === "showchat") {
+            chatArea.classList.remove("invisible");
+            promptInput.value = "";
+            return;
+          }
+
+          if (inputValue.toLowerCase() === "buypoli") {
+            showSwapPanel("buypoli");
+            promptInput.value = "";
+            return;
+          }
+
+          if (inputValue.toLowerCase() === "swappoli") {
+            showSwapPanel("swappoli");
+            promptInput.value = "";
+            return;
+          }
+          if (inputValue.toLowerCase() === "swappolistar") {
+            showSwapPanel("swappolistar");
+            promptInput.value = "";
+            return;
+          }
+          if (
+            inputValue.toLowerCase() === "hideswap" ||
+            inputValue.toLowerCase() === "hidebuy"
+          ) {
+            document.getElementById("swapPanel").classList.add("hidden");
+            speakWithPolistar("Swap panel is now hidden.");
+            promptInput.value = "";
+            return;
+          }
+          if (inputValue.toLowerCase() === "close") {
+            document.getElementById("swapPanel").classList.add("hidden");
+            chatArea.classList.add("invisible");
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "hidden";
+              box.style.opacity = 0;
+            }
+
+            promptInput.value = "";
+            return;
+          }
+
+          if (
+            (inputValue.toLowerCase() === "yes" ||
+              inputValue.toLowerCase() === "yes, please") &&
+            hasOfferedEmber
+          ) {
+            speakWithPolistar(
+              "Please chat with our embers - professionals in specific areas."
+            );
+            showEmberPanel();
+            promptInput.value = "";
+            return;
+          }
+          //- Return Polistar to active Avatar
+          if (
+            inputValue.toLowerCase() === "polistarback" ||
+            inputValue.toLowerCase() === "stop"
+          ) {
+            const avatarImg = document.getElementById("activeAvatarImg");
+            avatarImg.classList.remove("animate-ember");
+            avatarImg.setAttribute("src", "images/polistar.png");
+            avatarImg.classList.remove("animate-ember");
+            avatarImg.setAttribute("src", "images/polistar.gif");
+            currentSpeaker = "polistar";
+            stopEmberBurnLoop();
+            speakWithPolistar("Polistar has returned. I’ll guide you again.");
+            promptInput.value = "";
+
+            return;
+          }
+          if (inputValue.toLowerCase() === "pause") {
+            stopEmberBurnLoop();
+            speakWithEmber("We paused our conversation.");
+            promptInput.value = "";
+
+            return;
+          }
+
+          //= Show Ember selection
+          if (inputValue.toLowerCase() === "showembers") {
+            document
+              .getElementById("emberAvatarPanel")
+              .classList.remove("hidden");
+            speakWithPolistar("Here are the Embers available to guide you.");
+            promptInput.value = "";
+            return;
+          }
+          if ((currentSpeaker !== "polistar") && (emberBurnInterval == null)) {
+            startEmberBurnLoop();
+          }
+
+          // Traveller message bubble
+          const userBubble = document.createElement("div");
+          userBubble.className =
+            "self-end bg-blue-600 px-4 py-2 rounded-2xl max-w-md text-white shadow-md mr-2";
+          userBubble.innerHTML = `<strong>You:</strong><br>${inputValue}`;
+          chatArea.appendChild(userBubble);
+
+          chatArea.scrollTop = chatArea.scrollHeight;
+
+          this.value = "";
+
+          // Simulate Polistar thinking
+          const thinkingBubble = document.createElement("div");
+          thinkingBubble.className =
+            "self-center italic text-white/70 px-4 py-2 animate-pulse";
+          thinkingBubble.id = "thinkingBubble";
+          thinkingBubble.textContent = currentSpeaker + " is thinking...";
+          chatArea.appendChild(thinkingBubble);
+          chatArea.scrollTop = chatArea.scrollHeight;
+
+          setTimeout(() => {
+            chatArea.removeChild(thinkingBubble);
+            renderHostReply(`I hear you… '${inputValue}'.`);
+          }, 1500);
+
+          if (!firstResponseSent) {
+            firstResponseSent = true;
+            setTimeout(initiateMetaMaskLogin, 15000);
+          }
+        }
+      });
+
+      function showEmberPanel() {
+        document.getElementById("emberAvatarPanel").classList.remove("hidden");
+      }
+      async function getUsdtBalance(address) {
+        const res = await fetch(
+          "https://us-central1-poliworld-f165b.cloudfunctions.net/getUsdtBalance",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address }),
+          }
         );
 
-        const { travellerId, isNew } = res.data;
+        if (!res.ok) throw new Error("Failed to fetch USDT balance");
+        const data = await res.json(); // { amount: "12.34" }
+        return parseFloat(data.amount || 0);
+      }
 
+      function showSwapPanel(type) {
+        const panel = document.getElementById("swapPanel");
+        const content = document.getElementById("swapContent");
+        const button = document.getElementById("swapConfirmBtn");
 
-        console.log("MetaMask connected:", address);
-        
-        const displayMessage = isNew ? "✨ Welcome, Traveller!" : "✨ Welcome back, Traveller!";
-        typeWelcomeMessage(displayMessage);
+        panel.classList.remove("hidden");
 
-        
-        document.getElementById("balancePanel").classList.remove("hidden");
+        if (type === "buypoli") {
+          content.innerHTML = `
+          <div class="mb-2">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-1/3 flex justify-center">
+                <img src="images/usdt-logo.png" 
+                    class="w-12 h-12 animate-bounce-swap" 
+                    alt="USDT icon" />
+              </div>
 
-        try {
+              <div class="w-2/3">
+                <div class="flex justify-end items-center gap-2">
+                  <label for="usdtAmount" class="text-sm text-gray-300">Amount USDT:</label>
+                  <input id="usdtAmount" type="number" placeholder="e.g. 1"
+                    class="bg-gray-800 rounded px-3 py-2 w-40 text-white text-lg text-right" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="swapStatus" class="text-yellow-300 italic mt-2 mb-2"></div>
+          <button id="swapConfirmBtn"
+            class="mt-3 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl shadow hover:brightness-110 transition">
+            💸 Buy POLI
+          </button>
+    `;
+          const status = document.getElementById("swapStatus");
+          typeStatusMessage(
+            "Please enter USDT Amount to purchase POLI",
+            status
+          );
+          speakWithPolistar("Please enter USDT Amount to purchase POLI.");
 
-          const [polistarRes, poliRes] = await Promise.all([
-            fetch("https://us-central1-poliworld-f165b.cloudfunctions.net/getPolistarBalance", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ address })
-            }),
-            fetch("https://us-central1-poliworld-f165b.cloudfunctions.net/getPoliBalance", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ address })
-            })
-
-          ]);
-
-          const polistar = await polistarRes.json();
-          const poli = await poliRes.json();
-
-          const poliEl = document.getElementById("poliBalance");
-          const polistarEl = document.getElementById("polistarBalance");
-
-          const formattedPoli = Math.floor(Number(poli.amount));
-          const formattedPolistar = Math.floor(Number(polistar.amount));
-
-          if (poliEl) poliEl.textContent = formattedPoli;
-          if (polistarEl) polistarEl.textContent = formattedPolistar;
-
-          const message = isNew
-            ? "Welcome, Traveller. Your POLI balance is now available."
-            : "Welcome back, Traveller. Your POLI balance is now available.";
-
-          speakWithEmber(message);
-
-        } catch (err) {
-          console.error("Balance fetch failed:", err);
+          document.getElementById("swapConfirmBtn").onclick = async () => {
+            const amount = parseFloat(
+              document.getElementById("usdtAmount").value
+            );
+            if (!amount || amount <= 0) return;
+            typeStatusMessage(
+              `Preparing to purchase of ${amount * 1000} POLI...`,
+              status
+            );
+            speakWithPolistar(
+              `Simulating purchase of ${amount * 1000} POLI...`
+            );
+            //-- Close swap window
+            document.getElementById("swapPanel").classList.add("hidden");
+          };
         }
 
+        if (type === "swappoli") {
+          content.innerHTML = `
+            <div class="mb-2">
+              <div class="flex items-center justify-between mb-3">
+                <div class="w-1/3 flex justify-center">
+                  <img src="images/poli-logo.png" 
+                      class="w-12 h-12 animate-bounce-swap" 
+                      alt="coin moving" />
+                </div>
 
-      } catch (error) {
-        console.error("MetaMask login failed:", error);
-        alert("MetaMask connection failed. Please try again.");
+                <div class="w-2/3">
+                  <div class="flex justify-end items-center gap-2">
+                    <label for="poliToSwap" class="text-sm text-gray-300">Amount POLI:</label>
+                    <input id="poliToSwap" type="number" placeholder="e.g. 100"
+                      class="bg-gray-800 rounded px-3 py-2 w-40 text-white text-lg text-right" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="swapStatus" class="text-yellow-300 italic mt-2 mb-2"></div>
+            <button id="swapConfirmBtn"
+              class="mt-3 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl shadow hover:brightness-110 transition">
+              🔄 Confirm Swap
+            </button>
+          `;
+
+          const status = document.getElementById("swapStatus");
+          typeStatusMessage(
+            "Please enter POLI amount to swap to POLISTAR",
+            status
+          );
+          speakWithPolistar(
+            "Please enter the amount of POLI you want to swap into POLISTAR."
+          );
+
+          document.getElementById("swapConfirmBtn").onclick = async () => {
+            const amount = parseFloat(
+              document.getElementById("poliToSwap").value
+            );
+            if (!amount || amount <= 0) return;
+            typeStatusMessage(
+              `Preparing to swap ${amount} POLI to POLISTAR...`,
+              status
+            );
+            speakWithPolistar(
+              `Swapping ${amount} POLI into POLISTAR. Stand by.`
+            );
+            // TODO: call bridgePoliToPolistar backend
+
+            //-- Close swap window
+            document.getElementById("swapPanel").classList.add("hidden");
+          };
+        }
+
+        if (type === "swappolistar") {
+          content.innerHTML = `
+          <div class="mb-2">
+            <div class="flex items-center justify-between mb-3">
+              <div class="w-1/3 flex justify-center">
+                <img src="images/polistar-logo.png" 
+                    class="w-12 h-12 animate-bounce-swap" 
+                    alt="Polistar icon" />
+              </div>
+
+              <div class="w-2/3">
+                <div class="flex justify-end items-center gap-2">
+                  <label for="withdrawAmount" class="text-sm text-gray-300">Withdraw POLISTAR:</label>
+                  <input id="withdrawAmount" type="number" placeholder="e.g. 50"
+                    class="bg-gray-800 rounded px-3 py-2 w-40 text-white text-lg text-right" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="swapStatus" class="text-yellow-300 italic mt-2 mb-2"></div>
+          <button id="swapConfirmBtn"
+            class="mt-3 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl shadow hover:brightness-110 transition">
+            🔁 Withdraw to POLI
+          </button>
+          `;
+          const status = document.getElementById("swapStatus");
+          typeStatusMessage(
+            "Please enter POLI amount to swap to POLISTAR",
+            status
+          );
+          speakWithPolistar(
+            "Please enter the amount of POLI you want to swap into POLISTAR."
+          );
+
+          document.getElementById("swapConfirmBtn").onclick = async () => {
+            const amount = parseFloat(
+              document.getElementById("withdrawAmount").value
+            );
+            if (!amount || amount <= 0) return;
+            typeStatusMessage(
+              `Preparing to swap ${amount} POLISTAR to POLI...`,
+              status
+            );
+            speakWithPolistar(
+              `Swapping ${amount} POLISTAR into back to POLI. Stand by.`
+            );
+            // TODO: call bridgePoliToPolistar backend
+
+            //-- Close swap window
+            document.getElementById("swapPanel").classList.add("hidden");
+          };
+        }
       }
-    }
 
-    function speakEmberIntro() {
-      const introText = "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen.";
-      const utterance = new SpeechSynthesisUtterance(introText);
-      utterance.rate = 1.1;
-      utterance.pitch = 1.1;
+      async function burnPolistarToken(
+        userId,
+        amount = 1,
+        reason = "Ember session"
+      ) {
+        try {
+          const res = await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/burnToken",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userId: userId,
+                tokenId: "POLISTAR",
+                amount: amount,
+                reason: reason,
+              }),
+            }
+          );
 
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('female')) ||
-                        voices.find(v => v.lang.includes('en-GB')) ||
-                        voices.find(v => v.name.toLowerCase().includes('female')) ||
-                        voices[0];
+          if (!res.ok) {
+            throw new Error("Burn failed");
+          }
 
-      if (preferred) utterance.voice = preferred;
-      window.speechSynthesis.speak(utterance);
-      renderHostReply(introText);
-    }
+          const data = await res.json();
+          console.log("🔥 POLISTAR burned:", amount, data);
+          return true;
+        } catch (err) {
+          console.error("❌ Burn error:", err);
+          return false;
+        }
+      }
 
-    window.speechSynthesis.onvoiceschanged = () => {
-      setTimeout(speakEmberIntro, 2000);
-    };
+      function startPolistarTimers(travellerId, address) {
+        // - Reward for signing up
+        setTimeout(async () => {
+          await mintPolistarReward(travellerId, address, 5);
+          showCoinSplash(5);
+          typeStatusMessage("🎁 +5 POLISTAR received!");
+          speakWithPolistar("You’ve received 5 polistars for signing in.");
+          status.textContent = "🎁 +5 POLISTAR received!";
+          document.getElementById("polistarBalance").textContent = 5;
+        }, 10000);
 
-    const particlesContainer = document.getElementById('particles');
-    for (let i = 0; i < 40; i++) {
-      const p = document.createElement('div');
-      p.className = 'particle';
-      p.style.top = Math.random() * window.innerHeight + 'px';
-      p.style.left = Math.random() * window.innerWidth + 'px';
-      p.style.animationDuration = 6 + Math.random() * 10 + 's';
-      particlesContainer.appendChild(p);
-    }
-  </script>
-</body>
+        // 1-minute reward
+        setTimeout(async () => {
+          if (!window.milestoneRewarded["1min"]) {
+            await mintPolistarReward(travellerId, address, 10);
+            showCoinSplash(10);
+            typeStatusMessage("⏱️ +10 POLISTAR for your attention");
+            speakWithPolistar(
+              "You’ve received 10 polistars for spending a moment with me."
+            );
+            window.milestoneRewarded["1min"] = true;
+
+            const polistar = await getPolistarBalance(address);
+            document.getElementById("polistarBalance").textContent = parseInt(
+              polistar.balance
+            );
+          }
+        }, 60000);
+
+        // - set timer for talking with POLISTAR
+        // 3-minute reward
+        setTimeout(async () => {
+          if (!window.milestoneRewarded["3min"]) {
+            await mintPolistarReward(travellerId, address, 10);
+            showCoinSplash(10);
+            typeStatusMessage("⏳ +10 more POLISTAR for your presence");
+            speakWithPolistar(
+              "Another 10 polistars, gifted for your continued presence."
+            );
+            window.milestoneRewarded["3min"] = true;
+
+            const polistar = await getPolistarBalance(address);
+            document.getElementById("polistarBalance").textContent = parseInt(
+              polistar.balance
+            );
+          }
+        }, 180000);
+      }
+
+      function typeStatusMessage(text, callback) {
+        const status = document.getElementById("sessionStatus");
+        status.textContent = "";
+        let i = 0;
+        const speed = 40; // ms per letter
+
+        const typer = setInterval(() => {
+          if (i < text.length) {
+            status.textContent += text.charAt(i);
+            i++;
+          } else {
+            clearInterval(typer);
+            if (callback) callback();
+          }
+        }, speed);
+      }
+
+      function showCoinSplash(amount = 5) {
+        const splash = document.getElementById("coinSplash");
+        splash.innerHTML = `<span class="coin-explosion text-yellow-300 font-bold text-lg">+${amount} POLISTAR</span>`;
+      }
+
+      function showFloatingReward(text) {
+        const rewardDiv = document.getElementById("floatingReward");
+        rewardDiv.textContent = text;
+        rewardDiv.classList.remove("opacity-0");
+        rewardDiv.classList.add("opacity-100", "scale-125");
+
+        setTimeout(() => {
+          rewardDiv.classList.remove("opacity-100", "scale-125");
+          rewardDiv.classList.add("opacity-0");
+        }, 1800);
+      }
+
+      async function mintPolistarReward(uid, address, amount) {
+        if (!uid || !address || !amount) return;
+
+        try {
+          console.log(
+            `Minting ${amount} POLISTAR for UID: ${uid} (${address})`
+          );
+
+          await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/rewardPolistar",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uid, address, amount }),
+            }
+          );
+
+          const polistarEl = document.getElementById("polistarBalance");
+          if (!polistarEl) {
+            console.warn("⚠️ Could not find #polistarBalance element in DOM");
+            return;
+          }
+
+          const current = parseInt(polistarEl.textContent || "0");
+          polistarEl.textContent = current + amount;
+
+          showFloatingReward(`+${amount} POLISTAR`);
+          speakWithPolistar(
+            `Polistar grants you ${amount} tokens… a gift for your spark.`
+          );
+        } catch (err) {
+          console.error("Minting failed:", err);
+        }
+      }
+
+      function typeWelcomeMessage(text) {
+        const element = document.getElementById("welcomeMessage");
+        element.textContent = ""; // Clear it
+
+        let i = 0;
+        const speed = 40; // ms per letter
+
+        const typer = setInterval(() => {
+          if (i < text.length) {
+            element.textContent += text.charAt(i);
+            i++;
+          } else {
+            clearInterval(typer);
+          }
+        }, speed);
+      }
+
+      function speakWithPolistar(text) {
+        const speak = () => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.1;
+          utterance.pitch = 1.1;
+
+          const voices = window.speechSynthesis.getVoices();
+          const preferred =
+            voices.find(
+              (v) =>
+                v.lang.includes("en-GB") &&
+                v.name.toLowerCase().includes("female")
+            ) ||
+            voices.find((v) => v.lang.includes("en-GB")) ||
+            voices.find((v) => v.name.toLowerCase().includes("female")) ||
+            voices[0];
+
+          if (preferred) utterance.voice = preferred;
+
+          utterance.onstart = () => {
+            document.getElementById("activeAvatarImg").src =
+              "/images/ember-avatar.gif";
+          };
+          utterance.onend = () => {
+            document.getElementById("activeAvatarImg").src =
+              "/images/ember-avatar.png";
+          };
+
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utterance);
+        };
+
+        if (window.speechSynthesis.getVoices().length > 0) {
+          speak();
+        } else {
+          window.speechSynthesis.onvoiceschanged = () => speak();
+        }
+      }
+
+      function renderHostReply(text) {
+        const bubble = document.createElement("div");
+        bubble.className =
+          "self-center bg-black/70 px-4 py-2 rounded-2xl max-w-md text-white shadow-md text-center";
+        bubble.innerHTML = `<strong>${currentSpeaker}:</strong><br>${text}`;
+        chatArea.appendChild(bubble);
+        chatArea.scrollTop = chatArea.scrollHeight;
+        speakWithCurrent(text);
+      }
+
+      function triggerEmberSpeaking() {
+        const avatar = document.getElementById("activeAvatarImg");
+        avatar.src = "/images/ember-avatar.gif";
+        setTimeout(() => {
+          avatar.src = "/images/ember-avatar.png";
+        }, 3000);
+      }
+
+      async function initiateMetaMaskLogin() {
+        if (!window.ethereum || !window.ethereum.isMetaMask) {
+          alert(
+            "MetaMask not detected. Please install it from https://metamask.io."
+          );
+          return;
+        }
+
+        try {
+          const provider = window.ethereum;
+          const accounts = await provider.request({
+            method: "eth_requestAccounts",
+          });
+
+          if (!accounts || accounts.length === 0) {
+            throw new Error("No MetaMask accounts found.");
+          }
+
+          const address = accounts[0];
+          const message = `Sign in to Polyworld as ${address}`;
+          const signature = await ethereum.request({
+            method: "personal_sign",
+            params: [message, address],
+          });
+
+          const res = await axios.post(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask",
+            { address, message, signature }
+          );
+
+          const { travellerId, isNew } = res.data;
+          window.currentTravellerId = travellerId;
+          window.currentWalletAddress = address;
+
+          console.log("✅ MetaMask connected:", address);
+          const displayMessage = isNew
+            ? "✨ Welcome, Traveller!"
+            : "✨ Welcome back, Traveller!";
+          typeWelcomeMessage(displayMessage);
+          document.getElementById("balancePanel").classList.remove("hidden");
+
+          const status = document.getElementById("sessionStatus");
+
+          // 🪙 Fetch balances
+          const polistar = await getPolistarBalance(address);
+          const poli = await getPoliBalance(address);
+          const usdt = await getUsdtBalance(address);
+
+          // 🎁 Reward only if balance is zero
+          if (polistar.balance === 0) {
+            typeStatusMessage("✨ Polistar is preparing your gift…");
+            startPolistarTimers(travellerId, address);
+          } else {
+            typeStatusMessage("✨ Your balance has been restored.");
+          }
+
+          // 🧾 Update all balances
+          document.getElementById("usdtBalance").textContent = usdt.toFixed(2);
+
+          document.getElementById("polistarBalance").textContent = parseInt(
+            polistar.balance
+          );
+          document.getElementById("withdrawableBalance").textContent = parseInt(
+            polistar.withdrawable || 0
+          );
+          document.getElementById("poliBalance").textContent = poli.toFixed(2);
+
+          const speechMessage = isNew
+            ? `Welcome, Traveller. Your POLI balance is now available.`
+            : `Welcome back, Traveller. Your POLI balance is now available.`;
+
+          speakWithPolistar(speechMessage);
+
+          // Call this after MetaMask connect is successful:
+          setTimeout(async () => {
+            if (polistar.balance > 10 && !hasOfferedEmber) {
+              hasOfferedEmber = true;
+
+              speakWithPolistar(
+                "You have enough POLISTARs to talk to our professionals – Embers. I can connect you to some of them now. Would you like to do that?"
+              );
+            }
+          }, 10000); // 10 seconds after connect
+        } catch (error) {
+          console.error("❌ MetaMask login failed:", error);
+          alert("MetaMask connection failed. Please try again.");
+        }
+      }
+
+      async function getPoliBalance(address) {
+        const res = await fetch(
+          "https://us-central1-poliworld-f165b.cloudfunctions.net/getPoliBalance",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ address }),
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch POLI balance");
+        }
+
+        const data = await res.json(); // { amount: "123.45..." }
+        return parseFloat(data.amount || 0);
+      }
+
+      async function getPolistarBalance(uid) {
+        const res = await fetch(
+          "https://us-central1-poliworld-f165b.cloudfunctions.net/getPolistarBalance",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uid }),
+          }
+        );
+
+        if (!res.ok) throw new Error("Failed to fetch POLISTAR balance");
+
+        return await res.json(); // { balance, withdrawable, ... }
+      }
+
+      function updateBalanceDisplay(balance, withdrawable) {
+        document.querySelector("#polistarBalance").textContent =
+          parseInt(balance);
+        document.querySelector("#withdrawableBalance").textContent =
+          parseInt(withdrawable);
+      }
+
+      function speakPolistarIntro() {
+        const introText =
+          "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen.";
+        const utterance = new SpeechSynthesisUtterance(introText);
+        utterance.rate = 1.1;
+        utterance.pitch = 1.1;
+
+        const voices = window.speechSynthesis.getVoices();
+        const preferred =
+          voices.find(
+            (v) =>
+              v.lang.includes("en-GB") &&
+              v.name.toLowerCase().includes("female")
+          ) ||
+          voices.find((v) => v.lang.includes("en-GB")) ||
+          voices.find((v) => v.name.toLowerCase().includes("female")) ||
+          voices[0];
+
+        if (preferred) utterance.voice = preferred;
+        window.speechSynthesis.speak(utterance);
+        renderHostReply(introText);
+      }
+
+      window.speechSynthesis.onvoiceschanged = () => {
+        setTimeout(speakEmberIntro, 2000);
+      };
+
+      const particlesContainer = document.getElementById("particles");
+      for (let i = 0; i < 40; i++) {
+        const p = document.createElement("div");
+        p.className = "particle";
+        p.style.top = Math.random() * window.innerHeight + "px";
+        p.style.left = Math.random() * window.innerWidth + "px";
+        p.style.animationDuration = 6 + Math.random() * 10 + "s";
+        particlesContainer.appendChild(p);
+      }
+
+      document.querySelectorAll(".emberOption").forEach((option) => {
+        option.addEventListener("click", () => {
+          const newSrc = option.getAttribute("data-img");
+          const role = option.getAttribute("data-ember");
+          const avatarImg = document.getElementById("activeAvatarImg");
+
+          if (avatarImg && newSrc) {
+            avatarImg.classList.remove("animate-ember");
+            avatarImg.setAttribute("src", newSrc);
+
+            // ✅ Add animation to new Ember avatar
+            avatarImg.classList.add("animate-ember");
+          }
+
+          // 🔁 Hide Ember Panel
+          document.getElementById("emberAvatarPanel").classList.add("hidden");
+
+          // Set current speaker
+          currentSpeaker = role; // role is already set to "financial", etc.
+
+          // Start burn loop
+          startEmberBurnLoop();
+          // 🔊 Speak Introduction
+          speakEmberIntro(role);
+        });
+      });
+
+      function speakWithCurrent(text) {
+        if (currentSpeaker === "polistar") {
+          speakWithPolistar(text);
+        } else {
+          let voiceName = "";
+
+          switch (currentSpeaker) {
+            case "financial":
+              voiceName = "en-GB-George";
+              break;
+            case "travel":
+              voiceName = "Microsoft Zira";
+              break;
+            case "psychologist":
+              voiceName = "Microsoft Zira";
+              break;
+          }
+          console.log("Current voice:", voiceName);
+          speakWithEmber(text, voiceName);
+        }
+      }
+
+      function speakEmberIntro(role) {
+        let text = "";
+        let voiceName = "";
+        console.log("Selecting speaker: ", role);
+        switch (role) {
+          case "financial":
+            text =
+              "Welcome. I’m your financial Ember. We can explore your goals, investments, or strategies together.";
+            voiceName = "en-GB-George"; // British Male
+            break;
+
+          case "travel":
+            text =
+              "Hello Traveller. I’m your journey guide. Tell me where you’d like to go or what dreams you carry.";
+            voiceName = "en-AU-Neural2-A"; // Calmer Australian voice
+            break;
+
+          case "psychologist":
+            text =
+              "I’m here to listen and reflect. Let’s talk, and we’ll find clarity together.";
+            voiceName = "Microsoft Zira"; // American Female
+            break;
+        }
+
+        speakWithEmber(text, voiceName);
+      }
+
+      function speakWithEmber(text, preferredVoiceName = null) {
+        const synth = window.speechSynthesis;
+
+        const speak = () => {
+          const utterance = new SpeechSynthesisUtterance(text);
+
+          const voices = synth.getVoices();
+          let selectedVoice = null;
+
+          if (preferredVoiceName) {
+            selectedVoice = voices.find((v) => v.name === preferredVoiceName);
+          }
+          preferredVoiceName = false;
+          console.log("Preferred voice name:", preferredVoiceName);
+          // Fallbacks by role (you can expand this logic)
+          if (!selectedVoice && currentSpeaker === "psychologist") {
+            console.log("currentSpeaker", currentSpeaker);
+            selectedVoice = voices.find(
+              (v) =>
+                v.lang.includes("en-US") &&
+                (v.name.includes("Zira") ||
+                  v.name.includes("Catherine") ||
+                  v.name.includes("Hazel"))
+            );
+          } else if (!selectedVoice && currentSpeaker === "travel") {
+            selectedVoice = voices.find(
+              (v) => v.name.includes("James") && v.lang === "en-AU"
+            );
+          } else if (!selectedVoice && currentSpeaker === "financial") {
+            selectedVoice = voices.find(
+              (v) => v.name.includes("James") && v.lang === "en-GB"
+            );
+          }
+
+          // Final fallback
+          if (!selectedVoice) {
+            selectedVoice = voices[0];
+          }
+          console.log("Selected voice:", selectedVoice);
+          utterance.voice = selectedVoice;
+          synth.speak(utterance);
+        };
+
+        if (synth.getVoices().length > 0) {
+          speak();
+        } else {
+          synth.onvoiceschanged = () => speak();
+        }
+      }
+
+      function speakWithEmberOld(text, voiceName = null) {
+        const synth = window.speechSynthesis;
+
+        const speak = () => {
+          const utter = new SpeechSynthesisUtterance(text);
+          if (voiceName) {
+            const voices = synth.getVoices();
+            const selectedVoice = voices.find((v) => v.name === voiceName);
+            if (selectedVoice) {
+              utter.voice = selectedVoice;
+              console.log("✅ Ember voice used:", selectedVoice.name);
+            } else {
+              console.warn("⚠️ Voice not found:", voiceName);
+            }
+          }
+          synth.speak(utter);
+        };
+
+        // Ensure voices are ready
+        if (synth.getVoices().length > 0) {
+          speak();
+        } else {
+          synth.onvoiceschanged = () => speak();
+        }
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        // Only speak if voice system is ready
+        setTimeout(() => {
+          speakWithPolistar(
+            "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen."
+          );
+        }, 1000);
+      });
+    </script>
+  </body>
 </html>
