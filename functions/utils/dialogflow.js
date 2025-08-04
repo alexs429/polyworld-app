@@ -4,7 +4,7 @@ exports.sendToDialogflow = async (userAddress, message) => {
   console.log("💬 sendToDialogflow called");
 
   try {
-    const { SessionsClient } = require('@google-cloud/dialogflow-cx'); // Lazy import
+    const { SessionsClient } = require('@google-cloud/dialogflow-cx');
 
     const projectId = process.env.DFX_PROJECT_ID;
     const location = process.env.DFX_LOCATION || 'australia-southeast1';
@@ -14,8 +14,8 @@ exports.sendToDialogflow = async (userAddress, message) => {
     const sessionId = userAddress.slice(2, 10);
 
     const sessionClient = new SessionsClient({
-          apiEndpoint: `${location}-dialogflow.googleapis.com`  // ✅ explicit endpoint
-          });
+      apiEndpoint: `${location}-dialogflow.googleapis.com`
+    });
 
     console.log("📍 DFX Config at runtime:", {
       projectId,
@@ -34,16 +34,25 @@ exports.sendToDialogflow = async (userAddress, message) => {
     const request = {
       session: sessionPath,
       queryInput: {
-        text: {
-          text: message,
-        },
+        text: { text: message },
         languageCode,
       },
     };
 
     const [response] = await sessionClient.detectIntent(request);
-    //console.log("📦 Raw Dialogflow CX response:", JSON.stringify(response, null, 2));
-    return response.textResponses?.[0]?.text || '[No response from Ember]';
+
+    // Extract usable reply
+    const messages = response.queryResult?.responseMessages || [];
+    let reply = '[No response from Ember]';
+
+    for (const msg of messages) {
+      if (msg.text?.text?.length > 0) {
+        reply = msg.text.text[0];
+        break;
+      }
+    }
+
+    return reply;
 
   } catch (err) {
     console.error("🔥 sendToDialogflow error:", err.message);

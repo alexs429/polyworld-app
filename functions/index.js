@@ -43,6 +43,8 @@ exports.spendPoliFromUser = require('./web3/spendPoliFromUser').spendPoliFromUse
 exports.handleUsdtPayment = require('./web3/handleUsdtPayment').handleUsdtPayment;
 exports.getPoliBalance = require('./web3/getPoliBalance').getPoliBalance;
 exports.getUsdtBalance = require('./web3/getUsdtBalance').getUsdtBalance;
+exports.buyPoliFromUsdt = require('./web3/buyPoliFromUsdt').buyPoliFromUsdt;
+exports.buildApproveUsdtTx = require('./web3/buildApproveUsdtTx').buildApproveUsdtTx;
 
 // 🔁 RANDL Protocol Exports
 exports.createToken = require('./randl/handlers/createToken').createToken;
@@ -53,7 +55,7 @@ exports.rewardPolistar = require('./randl/handlers/rewardPolistar').rewardPolist
 exports.spendPolistar = require('./randl/handlers/spendPolistar').spendPolistar;
 exports.getPolistarBalance = require('./randl/handlers/getPolistarBalance').getPolistarBalance;
 exports.getTokenList = require('./randl/handlers/getTokenList').getTokenList;
-
+exports.transferPolistar = require('./randl/handlers/transferPolistar').transferPolistar;
 
 // CHAT HANDLER
 exports.chatHandler = require('./handlers/chatHandler').chatHandler;

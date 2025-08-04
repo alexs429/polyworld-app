@@ -18,7 +18,7 @@ exports.burnToken = functions.https.onRequest((req, res) => {
 
       const tokenRef = db
         .collection("users")
-        .doc(userId.toLowerCase())
+        .doc(userId)
         .collection("tokens")
         .doc(tokenId);
 
