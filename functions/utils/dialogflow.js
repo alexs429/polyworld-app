@@ -1,34 +1,37 @@
-const { v4: uuidv4 } = require('uuid');
+// File: functions/utils/dialogflow.js
+const { v4: uuidv4 } = require("uuid");
+const { SessionsClient } = require("@google-cloud/dialogflow-cx");
 
-exports.sendToDialogflow = async (userAddress, message) => {
+exports.sendToDialogflow = async (sessionId, message, agentConfig) => {
   console.log("💬 sendToDialogflow called");
 
   try {
-    const { SessionsClient } = require('@google-cloud/dialogflow-cx');
+    // Pull agent config from parameter, with fallback to env
+    const {
+      projectId = process.env.DFX_PROJECT_ID,
+      location = process.env.DFX_LOCATION || "global",
+      agentId = process.env.DFX_AGENT_ID,
+    } = agentConfig || {};
 
-    const projectId = process.env.DFX_PROJECT_ID;
-    const location = process.env.DFX_LOCATION || 'australia-southeast1';
-    const agentId = process.env.DFX_AGENT_ID;
-    const languageCode = 'en';
-
-    const sessionId = userAddress.slice(2, 10);
+    const languageCode = "en";
+    const resolvedSessionId = sessionId || uuidv4();
 
     const sessionClient = new SessionsClient({
-      apiEndpoint: `${location}-dialogflow.googleapis.com`
+      apiEndpoint: `${location}-dialogflow.googleapis.com`,
     });
 
     console.log("📍 DFX Config at runtime:", {
       projectId,
       location,
       agentId,
-      sessionId
+      sessionId: resolvedSessionId,
     });
 
     const sessionPath = sessionClient.projectLocationAgentSessionPath(
       projectId,
       location,
       agentId,
-      sessionId
+      resolvedSessionId
     );
 
     const request = {
@@ -43,19 +46,41 @@ exports.sendToDialogflow = async (userAddress, message) => {
 
     // Extract usable reply
     const messages = response.queryResult?.responseMessages || [];
-    let reply = '[No response from Ember]';
+    // Extract reply from standard text messages
+    let reply = "[No response from Polistar]";
 
     for (const msg of messages) {
       if (msg.text?.text?.length > 0) {
         reply = msg.text.text[0];
         break;
       }
+      if (msg.payload?.fields?.reply?.stringValue) {
+        reply = msg.payload.fields.reply.stringValue;
+        break;
+      }
+      if (msg.text?.text?.length > 0) {
+        reply = msg.text.text[0];
+        break;
+      }
+    }
+
+    // ✅ Add support for $request.generative as a fallback
+    if (
+      reply === "[No response from Polistar]" ||
+      reply === "$request.generative"
+    ) {
+      const generative =
+        response.queryResult?.parameters?.fields?.request?.structValue?.fields
+          ?.generative?.stringValue;
+
+      if (generative) {
+        reply = generative;
+      }
     }
 
     return reply;
-
   } catch (err) {
-    console.error("🔥 sendToDialogflow error:", err.message);
-    return '[Error: Ember failed to respond]';
+    console.error("🔥 sendToDialogflow error:", err.message, err);
+    return `[Error: ${err.message}]`;
   }
 };

@@ -65,6 +65,10 @@ exports.bridgeToken = require('./bridge/bridgeToken').bridgeToken;
 exports.withdrawPoliFromRANDL = require("./bridge/withdrawPoliFromRANDL").withdrawPoliFromRANDL;
 
 
+// COMMUNICATION
+const { handleTravellerMessage } = require("./conversation/handleTravellerMessage");
+exports.handleTravellerMessage = handleTravellerMessage;
+
 // 🧪 Seeder
 exports.seedAll = require('./seed/seedAll').seedAll;
 exports.seedSystemConfig = require('./seed/seedSystemConfig').seedSystemConfig;

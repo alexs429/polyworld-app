@@ -243,7 +243,7 @@
       <!-- Ember: Financial Consultant -->
       <div
         data-img="images/ember-financial.png"
-        data-ember="financial"
+        data-ember="finance"
         class="emberOption flex flex-col items-center cursor-pointer"
       >
         <img
@@ -353,7 +353,8 @@
       let polistarRewardedAt3m = false;
       let polistarStartTime = null;
       let hasOfferedEmber = false;
-      let currentSpeaker = "polistar"; // or "financial", "travel", "psychologist"
+      let currentSpeaker = "polistar"; // or "finance", "travel", "psychologist"
+      let currentEmber = null; // or "finance" or "psych"
 
       let emberBurnInterval = null;
 
@@ -385,7 +386,7 @@
               updateBalanceDisplay(updated.balance, updated.withdrawable || 0);
             }
           }
-        }, 20000);
+        }, 30000);
       }
 
       function stopEmberBurnLoop() {
@@ -502,8 +503,7 @@
           }
 
           if (
-            (inputValue.toLowerCase() === "yes" ||
-              inputValue.toLowerCase() === "yes, please") &&
+            (inputValue.toLowerCase() === "yes") &&
             hasOfferedEmber
           ) {
             speakWithPolistar(
@@ -524,6 +524,7 @@
             avatarImg.classList.remove("animate-ember");
             avatarImg.setAttribute("src", "images/polistar.gif");
             currentSpeaker = "polistar";
+            currentEmber = null;
             stopEmberBurnLoop();
             speakWithPolistar("Polistar has returned. I’ll guide you again.");
             promptInput.value = "";
@@ -578,10 +579,11 @@
 
           setTimeout(async () => {
             chatArea.removeChild(thinkingBubble);
-            
-            const travellerAddress = window.currentWalletAddress;
-            const sessionId = travellerAddress || `guest-${crypto.randomUUID()}`;
 
+            const travellerAddress = window.currentWalletAddress;
+            const sessionId =
+              travellerAddress || `guest-${crypto.randomUUID()}`;
+            console.log("Current ember:", currentEmber);
             try {
               const res = await fetch(
                 "https://us-central1-poliworld-f165b.cloudfunctions.net/chatHandler",
@@ -592,15 +594,148 @@
                     message: inputValue,
                     sessionId: sessionId, // Your MetaMask-linked address
                     userAddress: travellerAddress, // Optional param for backend to use
+                    ember: currentEmber
                   }),
                 }
               );
               const data = await res.json();
-              console.log("response from chatHandler: " ,data);
+              console.log("response from chatHandler: ", data);
               const reply = data.reply || "Hmm… I didn’t quite catch that.";
-              
+
+              //-- Deal with preprogrammed commands
+              if (reply === "hidecamera") {
+                const box = document.getElementById("cameraBox");
+                if (box) {
+                  box.style.visibility = "hidden";
+                  box.style.opacity = 0;
+                  speakWithPolistar("Camera is now hidden.");
+                }
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "showcamera") {
+                const box = document.getElementById("cameraBox");
+                if (box) {
+                  box.style.visibility = "visible";
+                  box.style.opacity = 1;
+                  speakWithPolistar("Camera is now visible.");
+                }
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "hidechat") {
+                chatArea.classList.add("invisible");
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "showchat") {
+                chatArea.classList.remove("invisible");
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "buypoli") {
+                showSwapPanel("buypoli");
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "swappoli") {
+                showSwapPanel("swappoli");
+                promptInput.value = "";
+                return;
+              }
+              if (reply === "swappolistar") {
+                showSwapPanel("swappolistar");
+                promptInput.value = "";
+                return;
+              }
+
+              if (reply === "transferpolistar") {
+                showSwapPanel("transferpolistar");
+                speakWithPolistar(
+                  "Please enter the recipient user ID and amount to transfer."
+                );
+                promptInput.value = "";
+                return;
+              }
+              if (reply === "hideswap") {
+                document.getElementById("swapPanel").classList.add("hidden");
+                speakWithPolistar("Swap panel is now hidden.");
+                promptInput.value = "";
+                return;
+              }
+              if (reply === "close") {
+                document.getElementById("swapPanel").classList.add("hidden");
+                chatArea.classList.add("invisible");
+                const box = document.getElementById("cameraBox");
+                if (box) {
+                  box.style.visibility = "hidden";
+                  box.style.opacity = 0;
+                }
+
+                promptInput.value = "";
+                return;
+              }
+
+              if (
+                reply === "yes"  &&
+                hasOfferedEmber
+              ) {
+                speakWithPolistar(
+                  "Please chat with our embers - professionals in specific areas."
+                );
+                showEmberPanel();
+                promptInput.value = "";
+                return;
+              }
+              //- Return Polistar to active Avatar
+              if (reply === "stop") {
+                const avatarImg = document.getElementById("activeAvatarImg");
+                avatarImg.classList.remove("animate-ember");
+                avatarImg.setAttribute("src", "images/polistar.png");
+                avatarImg.classList.remove("animate-ember");
+                avatarImg.setAttribute("src", "images/polistar.gif");
+                currentSpeaker = "polistar";
+                currentEmber = null;
+                stopEmberBurnLoop();
+                speakWithPolistar(
+                  "Polistar has returned. I’ll guide you again."
+                );
+                promptInput.value = "";
+
+                return;
+              }
+              if (reply === "pause") {
+                stopEmberBurnLoop();
+                speakWithEmber("We paused our conversation.");
+                promptInput.value = "";
+
+                return;
+              }
+
+              //= Show Ember selection
+              if (reply === "showembers") {
+                document
+                  .getElementById("emberAvatarPanel")
+                  .classList.remove("hidden");
+                speakWithPolistar(
+                  "Here are the Embers available to guide you."
+                );
+                promptInput.value = "";
+                return;
+              }
+
+
+              if (currentSpeaker !== "polistar" && emberBurnInterval == null) {
+                startEmberBurnLoop();
+              }
+
               renderHostReply(reply);
-             //speakWithPolistar(reply); // Or speakWithEmber(reply), depending on mode
+              //speakWithPolistar(reply); // Or speakWithEmber(reply), depending on mode
             } catch (err) {
               console.error("❌ Chat handler failed:", err);
               renderHostReply(
@@ -856,7 +991,7 @@
               status
             );
             speakWithPolistar(
-              `Swapping ${amount} POLI into POLISTAR. Stand by.`
+              `Swapping ${amount} POLI into polistar . Stand by.`
             );
 
             const userId = window.currentTravellerId;
@@ -885,7 +1020,7 @@
               await new Promise((resolve) => setTimeout(resolve, 3000));
 
               speakWithPolistar(
-                "✅ Your POLI has been transferred into POLISTAR."
+                "✅ Your POLI has been transferred into polistar."
               );
               typeStatusMessage("✅ Swap complete: POLI → POLISTAR", status);
 
@@ -1386,6 +1521,7 @@
 
           // Set current speaker
           currentSpeaker = role; // role is already set to "financial", etc.
+          currentEmber = currentSpeaker;
 
           // Start burn loop
           startEmberBurnLoop();
@@ -1401,7 +1537,7 @@
           let voiceName = "";
 
           switch (currentSpeaker) {
-            case "financial":
+            case "finance":
               voiceName = "en-GB-George";
               break;
             case "travel":
@@ -1421,7 +1557,7 @@
         let voiceName = "";
         console.log("Selecting speaker: ", role);
         switch (role) {
-          case "financial":
+          case "finance":
             text =
               "Welcome. I’m your financial Ember. We can explore your goals, investments, or strategies together.";
             voiceName = "en-GB-George"; // British Male
@@ -1471,7 +1607,7 @@
             selectedVoice = voices.find(
               (v) => v.name.includes("James") && v.lang === "en-AU"
             );
-          } else if (!selectedVoice && currentSpeaker === "financial") {
+          } else if (!selectedVoice && currentSpeaker === "finance") {
             selectedVoice = voices.find(
               (v) => v.name.includes("James") && v.lang === "en-GB"
             );

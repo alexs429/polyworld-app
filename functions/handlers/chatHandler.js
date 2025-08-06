@@ -4,11 +4,14 @@ const cors = require("cors")({ origin: true }); // Enable all origins for now
 const { verifyWallet } = require("../utils/blockchain");
 const { storeSession } = require("../utils/firestore");
 const { sendToDialogflow } = require("../utils/dialogflow");
+const { getAgentConfig } = require("../utils/agentConfig");
 
 exports.chatHandler = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
     try {
-      const { userAddress, message, sessionId, signature } = req.body;
+      const { userAddress, message, sessionId, ember } = req.body;
+
+      const agentConfig = getAgentConfig(ember || "polistar");
 
       // Validate input
       if (!sessionId || !message) {
@@ -26,7 +29,14 @@ exports.chatHandler = functions.https.onRequest((req, res) => {
       }
 
       // Get AI-generated response from Dialogflow CX
-      const reply = await sendToDialogflow(sessionId, message);
+      let reply;
+      try {
+        reply = await sendToDialogflow(sessionId, message, agentConfig);
+      } catch (err) {
+        console.error("❌ Ember agent failed, falling back to POLISTAR", err);
+        const fallbackConfig = getAgentConfig("polistar");
+        reply = await sendToDialogflow(sessionId, message, fallbackConfig);
+      }
 
       // Log message and reply
       await storeSession(sessionId, message, reply);
