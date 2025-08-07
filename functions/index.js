@@ -73,7 +73,8 @@ exports.handleTravellerMessage = handleTravellerMessage;
 exports.seedAll = require('./seed/seedAll').seedAll;
 exports.seedSystemConfig = require('./seed/seedSystemConfig').seedSystemConfig;
 
-
+// MERGE
+exports.mergeUserSessions = require("./merge/mergeUserSessions").mergeUserSessions;
 
 // Metamask
 exports.authenticateMetamask = require('./metamask/authenticateMetamask').authenticateMetamask;

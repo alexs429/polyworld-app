@@ -147,7 +147,8 @@
         <div
           class="relative bg-black/70 p-4 rounded-2xl shadow-xl border border-gray-500 space-y-2"
         >
-          <h2 class="text-lg font-semibold">Your Balance</h2>
+          <h2 class="text-lg font-semibold">Your Balance:</h2>
+          <span id="userAddress" class="text-sm"></span>
           <div class="absolute top-3 left-3 flex flex-col items-start">
             <img
               src="/images/poli-logo.png"
@@ -155,15 +156,15 @@
               class="w-20 h-20 object-contain drop-shadow-md"
             />
           </div>
-          <p>
-            USDT:
-            <span id="usdtBalance" class="font-bold">0.00</span>
-          </p>
+          <p>POLISTAR: <span id="polistarBalance" class="font-bold">0</span></p>
           <p>
             POLI:
             <span id="poliBalance" class="font-bold">0</span>
           </p>
-          <p>POLISTAR: <span id="polistarBalance" class="font-bold">0</span></p>
+          <p>
+            USDT:
+            <span id="usdtBalance" class="font-bold">0.00</span>
+          </p>
           <div id="withdrawableRow" class="hidden">
             <p>
               POLISTAR (withdrawable):
@@ -389,6 +390,52 @@
         }, 30000);
       }
 
+      function generateEphemeralWallet() {
+        const wallet = ethers.Wallet.createRandom(); // ✅ ethers is globally available
+
+        const user = {
+          address: wallet.address,
+          privateKey: wallet.privateKey,
+          generated: true,
+        };
+
+        localStorage.setItem("polyUser", JSON.stringify(user));
+        window.polyUser = user;
+        window.currentWalletAddress = user.address;
+
+        console.log("🔐 Generated ephemeral user:", user.address);
+      }
+
+      async function mergeSessions(internal, metamask) {
+        // Save primary address to localStorage
+        localStorage.setItem("primaryAddress", metamask.toLowerCase());
+
+        // Call backend to migrate data
+        await fetch(
+          "https://us-central1-poliworld-f165b.cloudfunctions.net/mergeUserSessions",
+          {
+            method: "POST",
+            body: JSON.stringify({ internal, metamask }),
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        console.log(`Merged session from ${internal} to ${metamask}`);
+      }
+
+      function loadExistingUser() {
+        const stored = localStorage.getItem("polyUser");
+        if (stored) {
+          const user = JSON.parse(stored);
+          window.polyUser = user;
+          window.currentWalletAddress = user.address;
+          console.log("Restored user:", user.address);
+          return user;
+        } else {
+          generateEphemeralWallet();
+        }
+      }
+
       function stopEmberBurnLoop() {
         if (emberBurnInterval) {
           clearInterval(emberBurnInterval);
@@ -443,6 +490,13 @@
             return;
           }
 
+          if (inputValue.toLowerCase() === "clearaddress") {
+            clearUserAddress();
+            
+            promptInput.value = "";
+            return;
+          }
+
           if (inputValue.toLowerCase() === "hidechat") {
             chatArea.classList.add("invisible");
             promptInput.value = "";
@@ -470,6 +524,12 @@
             showSwapPanel("swappolistar");
             promptInput.value = "";
             return;
+          }
+          if (
+            inputValue.toLowerCase() === "connectmetamask" ||
+            inputValue.toLowerCase() === "metamask"
+          ) {
+            initiateMetaMaskLogin();
           }
 
           if (inputValue.toLowerCase() === "transferpolistar") {
@@ -502,10 +562,7 @@
             return;
           }
 
-          if (
-            (inputValue.toLowerCase() === "yes") &&
-            hasOfferedEmber
-          ) {
+          if (inputValue.toLowerCase() === "yes" && hasOfferedEmber) {
             speakWithPolistar(
               "Please chat with our embers - professionals in specific areas."
             );
@@ -594,7 +651,7 @@
                     message: inputValue,
                     sessionId: sessionId, // Your MetaMask-linked address
                     userAddress: travellerAddress, // Optional param for backend to use
-                    ember: currentEmber
+                    ember: currentEmber,
                   }),
                 }
               );
@@ -681,10 +738,7 @@
                 return;
               }
 
-              if (
-                reply === "yes"  &&
-                hasOfferedEmber
-              ) {
+              if (reply === "yes" && hasOfferedEmber) {
                 speakWithPolistar(
                   "Please chat with our embers - professionals in specific areas."
                 );
@@ -729,7 +783,6 @@
                 return;
               }
 
-
               if (currentSpeaker !== "polistar" && emberBurnInterval == null) {
                 startEmberBurnLoop();
               }
@@ -746,10 +799,48 @@
 
           if (!firstResponseSent) {
             firstResponseSent = true;
-            setTimeout(initiateMetaMaskLogin, 15000);
+            loadExistingUser();
+            //-- Show balance panel
+            document.getElementById("balancePanel").classList.remove("hidden");
+            //-- display user address
+            showUserAddress();
+            //-- display polistar/poli/usdt balance
+            displayPolistarBalance(true); //- Updating it first time
+            displayOnchainBalance();
+
+            //-- setTimeout(initiateMetaMaskLogin, 15000);
           }
         }
       });
+
+      function showUserAddress() {
+        const stored = localStorage.getItem("polyUser");
+        const primary = localStorage.getItem("primaryAddress");
+
+        const address = primary || (stored && JSON.parse(stored).address);
+
+        if (address) {
+          const shortened = `${address.slice(0, 6)}...${address.slice(-4)}`;
+          document.getElementById("userAddress").textContent = `🧾 ${address}`;
+        }
+      }
+
+      function clearUserAddress() {
+        // Remove stored user identity
+        localStorage.removeItem("polyUser");
+        localStorage.removeItem("primaryAddress"); // Optional: also clear MetaMask-linked
+
+        // Clear from memory
+        window.polyUser = null;
+
+        // Optionally clear the address from UI
+        const addrElement = document.getElementById("userAddress");
+        if (addrElement) {
+          addrElement.textContent = "";
+        }
+
+        console.log("🔄 Cleared stored user address from localStorage.");
+      }
 
       async function submitTransfer() {
         const fromUserId = window.currentTravellerId;
@@ -1117,6 +1208,7 @@
 
           const data = await res.json();
           console.log("🔥 POLISTAR burned:", amount, data);
+          const address = window.currentWalletAddress;
           const polistar = await getPolistarBalance(address);
           const poli = await getPoliBalance(address);
           document.getElementById("polistarBalance").textContent = parseInt(
@@ -1352,16 +1444,33 @@
             "https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask",
             { address, message, signature }
           );
+          //-- mergeSession first
+          await mergeSessions(window.currentWalletAddress, address);
 
           const { travellerId, isNew } = res.data;
           window.currentTravellerId = travellerId;
           window.currentWalletAddress = address;
 
           console.log("✅ MetaMask connected:", address);
-          const displayMessage = isNew
-            ? "✨ Welcome, Traveller!"
-            : "✨ Welcome back, Traveller!";
-          typeWelcomeMessage(displayMessage);
+          if (
+            address != window.currentWalletAddress ||
+            window.polyUser.generated
+          ) {
+            const user = {
+              address: address,
+              privateKey: "",
+              generated: false,
+            };
+
+            localStorage.setItem("polyUser", JSON.stringify(user));
+            window.polyUser = user;
+            window.currentWalletAddress = user.address;
+          }
+
+          //const displayMessage = isNew
+          //  ? "✨ Welcome, Traveller!"
+          //  : "✨ Welcome back, Traveller!";
+          //typeWelcomeMessage(displayMessage);
           document.getElementById("balancePanel").classList.remove("hidden");
 
           const status = document.getElementById("sessionStatus");
@@ -1445,6 +1554,26 @@
         return await res.json(); // { balance, withdrawable, ... }
       }
 
+      async function displayPolistarBalance(firstTime = false) {
+        const travellerAddress = window.currentWalletAddress;
+        const polistarBalance = await getPolistarBalance(travellerAddress);
+
+        document.getElementById("polistarBalance").textContent =
+          polistarBalance.balance.toFixed(2);
+
+        if (firstTime) {
+          // 🎁 Reward only if balance is zero
+          if (polistarBalance.balance === 0) {
+            typeStatusMessage("✨ Polistar is preparing your gift…");
+            startPolistarTimers(
+              window.polyUser.address,
+              window.polyUser.address
+            );
+          } else {
+            typeStatusMessage("✨ Your balance has been restored.");
+          }
+        }
+      }
       async function displayOnchainBalance() {
         const travellerAddress = window.currentWalletAddress;
 
