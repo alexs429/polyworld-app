@@ -394,7 +394,7 @@
         const wallet = ethers.Wallet.createRandom(); // ✅ ethers is globally available
 
         const user = {
-          address: wallet.address,
+          address: wallet.address.toLowerCase(),
           privateKey: wallet.privateKey,
           generated: true,
         };
@@ -492,7 +492,8 @@
 
           if (inputValue.toLowerCase() === "clearaddress") {
             clearUserAddress();
-            
+            displayOnchainBalance();
+            displayPolistarBalance();
             promptInput.value = "";
             return;
           }
@@ -530,6 +531,8 @@
             inputValue.toLowerCase() === "metamask"
           ) {
             initiateMetaMaskLogin();
+            promptInput.value = "";
+            return;
           }
 
           if (inputValue.toLowerCase() === "transferpolistar") {
@@ -1439,7 +1442,7 @@
             method: "personal_sign",
             params: [message, address],
           });
-
+          console.log("Link Metamask current address:", window.currentWalletAddress);
           const res = await axios.post(
             "https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask",
             { address, message, signature }
@@ -1473,31 +1476,11 @@
           //typeWelcomeMessage(displayMessage);
           document.getElementById("balancePanel").classList.remove("hidden");
 
-          const status = document.getElementById("sessionStatus");
-
-          // 🪙 Fetch balances
-          const polistar = await getPolistarBalance(address);
-          const poli = await getPoliBalance(address);
-          const usdt = await getUsdtBalance(address);
-
-          // 🎁 Reward only if balance is zero
-          if (polistar.balance === 0) {
-            typeStatusMessage("✨ Polistar is preparing your gift…");
-            startPolistarTimers(travellerId, address);
-          } else {
-            typeStatusMessage("✨ Your balance has been restored.");
-          }
-
-          // 🧾 Update all balances
-          document.getElementById("usdtBalance").textContent = usdt.toFixed(2);
-
-          document.getElementById("polistarBalance").textContent = parseInt(
-            polistar.balance
-          );
-          document.getElementById("withdrawableBalance").textContent = parseInt(
-            polistar.withdrawable || 0
-          );
-          document.getElementById("poliBalance").textContent = poli.toFixed(2);
+          //-- display user address
+          showUserAddress();
+          //-- display polistar/poli/usdt balance
+          displayPolistarBalance(true); //- Updating it first time
+          displayOnchainBalance();
 
           const speechMessage = isNew
             ? `Welcome, Traveller. Your POLI balance is now available.`
@@ -1505,16 +1488,7 @@
 
           speakWithPolistar(speechMessage);
 
-          // Call this after MetaMask connect is successful:
-          setTimeout(async () => {
-            if (polistar.balance > 10 && !hasOfferedEmber) {
-              hasOfferedEmber = true;
-
-              speakWithPolistar(
-                "You have enough POLISTARs to talk to our professionals – Embers. I can connect you to some of them now. Would you like to do that?"
-              );
-            }
-          }, 10000); // 10 seconds after connect
+          
         } catch (error) {
           console.error("❌ MetaMask login failed:", error);
           alert("MetaMask connection failed. Please try again.");
@@ -1572,6 +1546,17 @@
           } else {
             typeStatusMessage("✨ Your balance has been restored.");
           }
+
+          // Call this after MetaMask connect is successful:
+          setTimeout(async () => {
+            if (polistarBalance.balance > 10 && !hasOfferedEmber) {
+              hasOfferedEmber = true;
+
+              speakWithPolistar(
+                "You have enough POLISTARs to talk to our professionals – Embers. I can connect you to some of them now. Would you like to do that?"
+              );
+            }
+          }, 10000); // 10 seconds after connect
         }
       }
       async function displayOnchainBalance() {

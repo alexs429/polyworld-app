@@ -1,8 +1,6 @@
 const functions = require("firebase-functions");
-const admin = require("firebase-admin");
 const cors = require("cors")({ origin: true });
-
-const db = admin.firestore();
+const { db } = require('../utils/firebase');
 
 exports.mergeUserSessions = functions.https.onRequest((req, res) => {
   cors(req, res, async () => {
@@ -16,48 +14,58 @@ exports.mergeUserSessions = functions.https.onRequest((req, res) => {
       const from = internal.toLowerCase();
       const to = metamask.toLowerCase();
 
-      const batch = db.batch();
       const collectionsToMerge = ["tokens", "conversations", "summaries", "events"];
-
+      const batch = db.batch();
       let totalMerged = 0;
 
       for (const collection of collectionsToMerge) {
         const fromRef = db.collection("users").doc(from).collection(collection);
         const toRef = db.collection("users").doc(to).collection(collection);
-
         const snapshot = await fromRef.get();
 
-        snapshot.forEach(doc => {
+        for (const doc of snapshot.docs) {
+          const tokenId = doc.id;
           const data = doc.data();
 
-          // For tokens, merge balances
           if (collection === "tokens") {
-            batch.set(
-              toRef.doc(doc.id),
-              {
-                ...data,
-                balance: admin.firestore.FieldValue.increment(data.balance || 0),
-              },
-              { merge: true }
-            );
+            // Manually merge balances
+            const toDocRef = toRef.doc(tokenId);
+            const toDoc = await toDocRef.get();
+
+            const fromBalance = data.balance || 0;
+            const toBalance = (toDoc.exists && toDoc.data().balance) || 0;
+            const mergedBalance = fromBalance + toBalance;
+            console.log("mergedBalance:", mergedBalance);
+            // Merge metadata too
+            const mergedData = {
+              ...toDoc.exists ? toDoc.data() : {},
+              ...data,
+              balance: mergedBalance,
+            };
+
+            batch.set(toDocRef, mergedData, { merge: true });
           } else {
-            // For logs/summaries/events: just copy document as-is
-            batch.set(toRef.doc(doc.id), data, { merge: true });
+            // For non-token collections, copy as-is
+            batch.set(toRef.doc(tokenId), data, { merge: true });
           }
 
-          // Delete original document
-          batch.delete(fromRef.doc(doc.id));
-        });
+          // Clean up original document
+          batch.delete(fromRef.doc(tokenId));
+        }
 
         totalMerged += snapshot.size;
       }
 
-      // Delete root user doc if empty
+      // Delete user root doc (optional cleanup)
       batch.delete(db.collection("users").doc(from));
 
       await batch.commit();
 
-      res.status(200).json({ success: true, merged: totalMerged });
+      res.status(200).json({
+        success: true,
+        merged: totalMerged,
+        message: `Merged ${totalMerged} documents from ${from} → ${to}`,
+      });
     } catch (error) {
       console.error("❌ mergeUserSessions failed:", error);
       res.status(500).json({ error: "Internal error during merge" });
