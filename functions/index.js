@@ -45,6 +45,7 @@ exports.getPoliBalance = require('./web3/getPoliBalance').getPoliBalance;
 exports.getUsdtBalance = require('./web3/getUsdtBalance').getUsdtBalance;
 exports.buyPoliFromUsdt = require('./web3/buyPoliFromUsdt').buyPoliFromUsdt;
 exports.buildApproveUsdtTx = require('./web3/buildApproveUsdtTx').buildApproveUsdtTx;
+exports.getPoliRate = require('./web3/getPoliRate').getPoliRate;
 
 // 🔁 RANDL Protocol Exports
 exports.createToken = require('./randl/handlers/createToken').createToken;

@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Polistar V2 — Merged CamBubble + HUD</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+      :root {
+        --sheet-h: 160px;
+        --bg-img: url("images/rooms/Main Entry.png");
+        --blur: 6px;
+        --pill-w: min(720px, 86vw);
+        --bubble: 192px;
+        --bubble-m: 160px;
+        --accent: #14b8a6;
+        --text: #0b1220;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        color: var(--text);
+        font: 16px/1.4 system-ui, Segoe UI, Roboto, Arial;
+        background: #eceff3;
+      }
+
+      /* Backdrop */
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+      }
+      .backdrop::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: var(--bg-img);
+        background-size: cover;
+        background-position: center;
+        filter: blur(var(--blur)) saturate(1.05) brightness(1);
+        transform: scale(1.06);
+      }
+      .veil {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.22),
+          rgba(255, 255, 255, 0.14) 30%,
+          rgba(255, 255, 255, 0.2)
+        );
+      }
+
+      /* Stage */
+      .stage {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* Top row: two circles */
+      .row {
+        display: flex;
+        gap: 28px;
+        margin-top: 44px;
+      }
+      .bubble {
+        position: relative;
+        width: var(--bubble);
+        height: var(--bubble);
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .bubble .title {
+        position: absolute;
+        top: 8px;
+        left: 10px;
+        font-size: 12px;
+        color: #6b7280;
+        letter-spacing: 0.2px;
+      }
+
+      /* Left: Polistar */
+      #aiBubble::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("images/bots/poly.png");
+        background-size: cover;
+        background-position: center;
+        filter: blur(2px) saturate(1.02);
+      }
+      .avatar-img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+        transform: scale(var(--avatar-zoom, 0.92));
+        transform-origin: center;
+      }
+      .controls {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+      }
+      .icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.9);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        cursor: pointer;
+      }
+      .icon-btn[data-on="true"] {
+        outline: 2px solid var(--accent);
+      }
+
+      /* Right: Camera bubble (front/back flip) */
+      #camBubble {
+        background: #000;
+        perspective: 1000px;
+      }
+      .camera-box {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        overflow: hidden;
+      }
+      .flip-inner {
+        position: absolute;
+        inset: 0;
+        transform-style: preserve-3d;
+        -webkit-transform-style: preserve-3d;
+      }
+      .face {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        overflow: hidden;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transition: transform 0.45s ease;
+        will-change: transform;
+      }
+      .face.front {
+        transform: rotateY(0deg);
+        pointer-events: auto;
+      }
+      .face.back {
+        transform: rotateY(180deg);
+        pointer-events: none;
+      }
+      .flip-inner.flipped .face.front {
+        transform: rotateY(180deg);
+        pointer-events: none;
+      }
+      .flip-inner.flipped .face.back {
+        transform: rotateY(0deg);
+        pointer-events: auto;
+      }
+
+      .camera-video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        z-index: 1;
+      }
+      .cam-fallback {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2;
+      }
+      .cam-fallback-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      .cam-note {
+        font-size: 14px;
+      }
+      .btn-cam {
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .btn-cam:hover {
+        background: #f9fafb;
+      }
+
+      /* POLI HUD */
+      .cam-balance {
+        position: absolute;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+        font-size: 12px;
+        z-index: 3;
+        cursor: pointer;
+      }
+      .cam-balance .token-ico {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        object-fit: cover;
+      }
+      .cam-balance .amount {
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Back: compact balance */
+      .balance-panel {
+        position: absolute;
+        inset: 0;
+        padding: 14px 14px 10px;
+        background: radial-gradient(
+          120% 120% at 50% 40%,
+          rgba(25, 29, 39, 0.94),
+          rgba(10, 12, 18, 0.98)
+        );
+        color: #e5e7eb;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        align-items: start;
+      }
+      .panel-inner {
+        width: 86%;
+        max-width: 240px;
+        margin: 0 auto;
+        display: grid;
+        gap: 8px;
+      }
+      .balance-logo {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        object-fit: cover;
+      }
+      .badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        width: 100%;
+        margin-top: 11px;
+      }
+      .badge-title {
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+      }
+      .badge .badge-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        object-fit: cover;
+        flex: 0 0 16px;
+      }
+      .addr {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 11px;
+        opacity: 0.95;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: copy;
+        max-width: 86%;
+        text-align: center;
+        margin: 0 auto;
+      }
+      .rows {
+        display: grid;
+        gap: 6px;
+        margin-top: 2px;
+        justify-items: stretch;
+        width: 100%;
+      }
+      .bal-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        column-gap: 14px;
+        align-items: center;
+        font-size: 11px;
+        width: 100%;
+      }
+      .bal-row span {
+        opacity: 0.85;
+        text-align: left;
+      }
+      .bal-row strong {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.2px;
+        font-size: 11px;
+        text-align: right;
+      }
+      .divider {
+        grid-column: 1 / -1;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.14);
+        opacity: 0.9;
+        margin-top: 4px;
+      }
+      .tiny-hint {
+        grid-column: 1 / -1;
+        text-align: center;
+        font-size: 11px;
+        opacity: 0.85;
+        margin-top: 2px;
+      }
+
+      /* Chat */
+      .chatlog {
+        position: relative;
+        width: var(--pill-w);
+        max-height: 56vh;
+        margin: 12px auto 0;
+        overflow: auto;
+        padding: 8px 6px;
+        transition: padding-bottom 0.28s ease;
+      }
+      .chatlog.sheet-open {
+        padding-bottom: calc(var(--sheet-h) + 80px);
+      }
+      .msg {
+        display: flex;
+        gap: 8px;
+        margin: 8px 0;
+      }
+      .msg.assistant {
+        justify-content: flex-start;
+      }
+      .msg.user {
+        justify-content: flex-end;
+      }
+      .bubble-txt {
+        max-width: 80%;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .msg.user .bubble-txt {
+        background: #e6f9f6;
+        border-color: #99f6e4;
+      }
+
+      /* Composer + function sheet */
+      .composer-wrap {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        width: var(--pill-w);
+        transition: transform 0.28s ease;
+      }
+      .composer-wrap.shift {
+        transform: translateX(-50%) translateY(calc(-1 * var(--sheet-h)));
+      }
+      .composer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.86);
+        backdrop-filter: saturate(1.1) blur(6px);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      }
+      .composer input {
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font-size: 15px;
+      }
+      .composer .btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: #fff;
+        cursor: pointer;
+      }
+      .btn.on {
+        outline: 2px solid var(--accent);
+      }
+
+      .dim {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.25);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      .dim.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .func-sheet {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: var(--sheet-h);
+        background: rgba(255, 255, 255, 0.98);
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.15);
+        transform: translateY(100%);
+        transition: transform 0.28s ease;
+        z-index: 2;
+      }
+      .func-sheet.open {
+        transform: translateY(0);
+      }
+      .sheet-handle {
+        width: 42px;
+        height: 6px;
+        border-radius: 999px;
+        background: #d1d5db;
+        margin: 10px auto;
+      }
+      .tiles {
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: center;
+        gap: 12px;
+        overflow-x: auto;
+        max-width: var(--pill-w);
+        margin: 8px auto;
+        padding: 6px 12px;
+      }
+      .tile {
+        white-space: nowrap;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: #fff;
+        cursor: pointer;
+        user-select: none;
+        text-align: center;
+      }
+
+      /* Status line */
+      .status-line {
+        opacity: 0.85;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.9rem;
+        padding: 0.25rem 0.5rem;
+        margin-top: 0.25rem;
+        border-left: 3px solid #94a3b8;
+        white-space: pre-wrap;
+      }
+
+      /* Scrollbar */
+      #chatlog::-webkit-scrollbar,
+      #chatArea::-webkit-scrollbar {
+        width: 8px;
+      }
+      #chatlog::-webkit-scrollbar-track,
+      #chatArea::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #chatlog::-webkit-scrollbar-thumb,
+      #chatArea::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      #chatlog,
+      #chatArea {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+      }
+
+      @media (max-width: 640px) {
+        .row {
+          gap: 18px;
+          margin-top: 28px;
+        }
+        .bubble {
+          width: var(--bubble-m);
+          height: var(--bubble-m);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .composer,
+        .bubble,
+        .flip-inner {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backdrop"><div class="veil"></div></div>
+
+    <div
+      class="stage"
+      role="application"
+      aria-label="Polistar minimal interface"
+    >
+      <div class="row" aria-label="Two portraits">
+        <!-- Left: Polistar avatar -->
+        <div class="bubble" id="aiBubble">
+          <div class="title">Polistar</div>
+          <img
+            class="avatar-img"
+            id="activeAvatarImg"
+            alt="Polistar avatar"
+            src="images/bots/poly.png"
+          />
+          <div class="controls">
+            <button
+              id="btnTTS"
+              class="icon-btn"
+              aria-pressed="false"
+              title="Toggle voice output"
+            >
+              🔊
+            </button>
+            <button
+              id="btnSTT"
+              class="icon-btn"
+              aria-pressed="false"
+              title="Dictate with your voice"
+            >
+              🎤
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Camera bubble (front/back flip) -->
+        <div class="bubble" id="camBubble" aria-live="polite">
+          <div class="title">You</div>
+          <div id="cameraBox" class="camera-box">
+            <div id="flipInner" class="flip-inner">
+              <!-- FRONT: camera + POLI chip -->
+              <div class="face front">
+                <video
+                  id="userCamera"
+                  autoplay
+                  muted
+                  playsinline
+                  class="camera-video"
+                ></video>
+                <div id="camFallback" class="cam-fallback" hidden>
+                  <div class="cam-fallback-inner">
+                    <div class="cam-note">
+                      Camera is off. Enable to appear here.
+                    </div>
+                    <button id="btnEnableCam" class="btn-cam">
+                      Enable camera
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="poliHud"
+                  class="cam-balance"
+                  role="button"
+                  title="Show balances"
+                >
+                  <img src="images/poli.jpg" alt="POLI" class="token-ico" />
+                  <span>POLI:</span>
+                  <span id="poliAmount" class="amount">-</span>
+                </div>
+              </div>
+              <!-- BACK: balance panel -->
+              <div class="face back" id="backFace">
+                <div class="balance-panel">
+                  <div class="panel-inner">
+                    <div class="badge">
+                      <img
+                        src="images/poli.jpg"
+                        alt="POLI"
+                        class="badge-icon"
+                      />
+                      <span class="badge-title">Balance</span>
+                    </div>
+                    <div class="addr" id="balAddr" title="Click to copy">
+                      0x…
+                    </div>
+                    <div class="rows">
+                      <div class="bal-row">
+                        <span>POLISTAR:</span
+                        ><strong id="balPolistar">25.00</strong>
+                      </div>
+                      <div class="bal-row">
+                        <span>POLI:</span><strong id="balPoli">500.00</strong>
+                      </div>
+                      <div class="bal-row">
+                        <span>USDT:</span><strong id="balUsdt">0.00</strong>
+                      </div>
+                    </div>
+                    <div class="divider"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat log -->
+      <div id="chatArea" class="chatlog" aria-live="polite"></div>
+
+      <!-- Composer + function sheet -->
+      <div class="composer-wrap" id="composerWrap">
+        <div class="composer" role="group" aria-label="Message composer">
+          <button id="btnPlus" class="btn" title="Functions">＋</button>
+          <input
+            id="prompt"
+            placeholder="Type your message…"
+            autocomplete="off"
+          />
+          <button id="btnMic" class="btn" aria-pressed="false" title="Speak">
+            🎙️
+          </button>
+          <button id="btnSend" class="btn" title="Send">➤</button>
+        </div>
+      </div>
+
+      <div id="dim" class="dim" aria-hidden="true"></div>
+      <div
+        id="funcSheet"
+        class="func-sheet"
+        role="dialog"
+        aria-label="Quick functions"
+      >
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="tiles">
+          <button class="tile" data-cmd="greet">👋 Greet</button>
+          <button class="tile" data-cmd="buypoli">🎫 Buy POLI</button>
+          <button class="tile" data-cmd="p2ps">🔁 POLI→POLISTAR</button>
+          <button class="tile" data-cmd="ps2p">🔄 POLISTAR→POLI</button>
+          <button class="tile" data-cmd="send">📤 Transfer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Script from original index.html-->
+    <script>
+      //-- Initialize variables
+      let polistarRewardedAt1m = false;
+      let polistarRewardedAt3m = false;
+      let polistarStartTime = null;
+      let hasOfferedEmber = false;
+      let currentSpeaker = "polistar"; // or "finance", "travel", "psychologist"
+      let currentEmber = null; // or "finance" or "psych"
+      let emberBurnInterval = null;
+      let __statusTimer = null;
+      let firstResponseSent = false;
+
+      //-- User and wallet management
+      function generateEphemeralWallet() {
+        const wallet = ethers.Wallet.createRandom(); // ✅ ethers is globally available
+        const user = {
+          address: wallet.address.toLowerCase(),
+          privateKey: wallet.privateKey,
+          generated: true,
+        };
+        localStorage.setItem("polyUser", JSON.stringify(user));
+        window.polyUser = user;
+        window.currentWalletAddress = user.address;
+        console.log("🔐 Generated ephemeral user:", user.address);
+      }
+
+      async function mergeSessions(internal, metamask) {
+        localStorage.setItem("primaryAddress", metamask.toLowerCase());
+        await fetch(
+          "https://us-central1-poliworld-f165b.cloudfunctions.net/mergeUserSessions",
+          {
+            method: "POST",
+            body: JSON.stringify({ internal, metamask }),
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+        console.log(`Merged session from ${internal} to ${metamask}`);
+      }
+
+      function loadExistingUser() {
+        const stored = localStorage.getItem("polyUser");
+        if (stored) {
+          const user = JSON.parse(stored);
+          window.polyUser = user;
+          window.currentWalletAddress = user.address;
+          console.log("Restored user:", user.address);
+          return user;
+        } else {
+          generateEphemeralWallet();
+        }
+      }
+
+      //--------------------------------------------------------------------------------------
+
+      async function mintPolistarReward(uid, address, amount) {
+        if (!uid || !address || !amount) return;
+
+        try {
+          console.log(
+            `Minting ${amount} POLISTAR for UID: ${uid} (${address})`
+          );
+
+          await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/rewardPolistar",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uid, address, amount }),
+            }
+          );
+
+          const polistarEl = document.getElementById("balPolistar");
+          if (!polistarEl) {
+            console.warn("⚠️ Could not find #balPolistar element in DOM");
+            return;
+          }
+
+          const current = parseInt(polistarEl.textContent || "0");
+          polistarEl.textContent = current + amount;
+
+          //showFloatingReward(`+${amount} POLISTAR`);
+          speakWithPolistar(
+            `Polistar grants you ${amount} tokens… a gift for your spark.`
+          );
+        } catch (err) {
+          console.error("Minting failed:", err);
+        }
+      }
+
+      //-- Type Status Message
+      function typeStatusMessage(text, callback) {
+        const chatArea = document.getElementById("chatArea");
+        if (!chatArea) return;
+        let status = chatArea.querySelector(".status-line");
+        if (!status) {
+          status = document.createElement("div");
+          status.className = "status-line";
+          chatArea.appendChild(status);
+        }
+        if (__statusTimer) clearInterval(__statusTimer);
+        status.textContent = "";
+        let i = 0;
+        const speed = 40;
+        __statusTimer = setInterval(() => {
+          if (i < text.length) {
+            status.textContent += text.charAt(i++);
+            chatArea.scrollTop = chatArea.scrollHeight;
+          } else {
+            clearInterval(__statusTimer);
+            __statusTimer = null;
+            if (typeof callback === "function") callback();
+          }
+        }, speed);
+      }
+      function clearStatusMessage() {
+        const status = document.querySelector("#chatArea .status-line");
+        if (status) status.remove();
+        if (__statusTimer) {
+          clearInterval(__statusTimer);
+          __statusTimer = null;
+        }
+      }
+
+      //-- Speak With Polistar function
+      function speakWithPolistar(text) {
+        const speak = () => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 1.1;
+          utterance.pitch = 1.1;
+          const voices = window.speechSynthesis.getVoices();
+          const preferred =
+            voices.find(
+              (v) =>
+                v.lang.includes("en-GB") &&
+                v.name.toLowerCase().includes("female")
+            ) ||
+            voices.find((v) => v.lang.includes("en-GB")) ||
+            voices.find((v) => v.name.toLowerCase().includes("female")) ||
+            voices[0];
+          if (preferred) utterance.voice = preferred;
+          utterance.onstart = () => {
+            document.getElementById("activeAvatarImg").src =
+              "/images/bots/poly.png";
+          };
+          utterance.onend = () => {
+            document.getElementById("activeAvatarImg").src =
+              "/images/bots/poly.png";
+          };
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utterance);
+        };
+        if (window.speechSynthesis.getVoices().length > 0) speak();
+        else window.speechSynthesis.onvoiceschanged = () => speak();
+      }
+    </script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var ttsOn = false,
+          sttOn = false,
+          recognition = null;
+
+        // Elements
+        var btnTTS = document.getElementById("btnTTS");
+        var btnSTT = document.getElementById("btnSTT");
+        var btnMic = document.getElementById("btnMic");
+        var btnSend = document.getElementById("btnSend");
+        var btnPlus = document.getElementById("btnPlus");
+        var composerWrap = document.getElementById("composerWrap");
+        var funcSheet = document.getElementById("funcSheet");
+        var dim = document.getElementById("dim");
+        var prompt = document.getElementById("prompt");
+        var promptInput = prompt; // alias to match listener snippet
+        var chatArea = document.getElementById("chatArea");
+
+        /* Bottom sheet */
+        function setSheet(open) {
+          funcSheet.classList.toggle("open", open);
+          dim.classList.toggle("open", open);
+          composerWrap.classList.toggle("shift", open);
+          chatArea.classList.toggle("sheet-open", open);
+          btnPlus.setAttribute("aria-expanded", String(open));
+        }
+        btnPlus.addEventListener("click", function () {
+          setSheet(!funcSheet.classList.contains("open"));
+        });
+        dim.addEventListener("click", function () {
+          setSheet(false);
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") setSheet(false);
+        });
+
+        /* Chat area */
+        function addMsg(role, text) {
+          var row = document.createElement("div");
+          row.className = "msg " + role;
+          var bubble = document.createElement("div");
+          bubble.className = "bubble-txt";
+          bubble.textContent = text;
+          row.appendChild(bubble);
+          if (role === "user") row.style.justifyContent = "flex-end";
+          chatArea.appendChild(row);
+          chatArea.scrollTop = chatArea.scrollHeight;
+          if (role === "assistant") speak(text);
+        }
+        function renderHostReply(text) {
+          speakWithCurrent(text);
+          addMsg("assistant", text);
+        }
+
+        function handleSendSimple() {
+          // legacy /poli shortcut
+          var text = (prompt.value || "").trim();
+          if (!text) return;
+          addMsg("user", text);
+          var lower = text.toLowerCase();
+          if (lower.indexOf("/poli") === 0 || lower.indexOf("/bal") === 0) {
+            var parts = text.split(" ");
+            var amt = Number(parts[1]);
+            if (isFinite(amt)) {
+              setPoliBalance(amt);
+              setBalances({ poli: amt });
+              addMsg(
+                "assistant",
+                "Updated balance to " +
+                  amt.toLocaleString(undefined, { maximumFractionDigits: 4 }) +
+                  " POLI."
+              );
+            } else addMsg("assistant", "Usage: /poli <amount>");
+          }
+          prompt.value = "";
+        }
+
+        /* TTS / STT */
+        btnTTS.addEventListener("click", function () {
+          ttsOn = !ttsOn;
+          btnTTS.dataset.on = String(ttsOn);
+          btnTTS.setAttribute("aria-pressed", String(ttsOn));
+        });
+        function speak(text) {
+          if (!ttsOn || !("speechSynthesis" in window)) return;
+          var u = new SpeechSynthesisUtterance(text);
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(u);
+        }
+        btnSTT.addEventListener("click", toggleSTT);
+        btnMic.addEventListener("click", toggleSTT);
+        function toggleSTT() {
+          if (sttOn) {
+            stopSTT();
+            return;
+          }
+          var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SR) {
+            alert("Speech-to-text not supported in this browser.");
+            return;
+          }
+          recognition = new SR();
+          recognition.lang = "en-US";
+          recognition.interimResults = true;
+          recognition.continuous = true;
+          recognition.onresult = function (e) {
+            var final = "";
+            for (var i = e.resultIndex; i < e.results.length; i++) {
+              var r = e.results[i];
+              if (r.isFinal) final += r[0].transcript;
+            }
+            if (final) prompt.value = (prompt.value + " " + final).trim();
+          };
+          recognition.onend = function () {
+            if (sttOn) recognition.start();
+          };
+          recognition.start();
+          sttOn = true;
+          btnSTT.setAttribute("aria-pressed", "true");
+          btnMic.setAttribute("aria-pressed", "true");
+        }
+        function stopSTT() {
+          if (recognition) {
+            recognition.onend = null;
+            recognition.stop();
+            recognition = null;
+          }
+          sttOn = false;
+          btnSTT.setAttribute("aria-pressed", "false");
+          btnMic.setAttribute("aria-pressed", "false");
+        }
+
+        /* Balance helpers */
+        // function setPoliBalance(value) {
+        //   var el = document.getElementById("poliAmount");
+        //   var n = Number(value);
+        //   var txt = isFinite(n)
+        //     ? n.toLocaleString(undefined, { maximumFractionDigits: 4 })
+        //     : String(value);
+        //   if (el) el.textContent = txt;
+        //   var bp = document.getElementById("balPoli");
+        //   if (bp) bp.textContent = txt;
+        // }
+        // window.setPoliBalance = setPoliBalance;
+
+        function setWalletAddress(addr) {
+          var short = addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "0x…";
+          var el = document.getElementById("balAddr");
+          if (!el) return;
+          el.textContent = short;
+          el.dataset.full = addr || "";
+        }
+        window.setWalletAddress = setWalletAddress;
+        function setBalances(obj) {
+          if (!obj) return;
+          if (obj.polistar != null) {
+            var a = document.getElementById("balPolistar");
+            a.textContent = Number(obj.polistar).toLocaleString(undefined, {
+              maximumFractionDigits: 4,
+            });
+          }
+          if (obj.poli != null) {
+            var b = document.getElementById("balPoli");
+            b.textContent = Number(obj.poli).toLocaleString(undefined, {
+              maximumFractionDigits: 4,
+            });
+            setPoliBalance(obj.poli);
+          }
+          if (obj.usdt != null) {
+            var c = document.getElementById("balUsdt");
+            c.textContent = Number(obj.usdt).toLocaleString(undefined, {
+              maximumFractionDigits: 4,
+            });
+          }
+        }
+        window.setBalances = setBalances;
+
+        /* Flip interactions */
+        var flipInner = document.getElementById("flipInner");
+        var poliHud = document.getElementById("poliHud");
+        var backFace = document.getElementById("backFace");
+        var balancePanel = document.querySelector("#backFace .balance-panel");
+        var balAddrEl = document.getElementById("balAddr");
+        function flipToBack(open) {
+          if (!flipInner) return;
+          flipInner.classList.toggle("flipped", !!open);
+        }
+        if (poliHud)
+          poliHud.addEventListener("click", function () {
+            flipToBack(true);
+          });
+        if (backFace)
+          backFace.addEventListener("click", function (e) {
+            if (e.target.closest(".addr")) return;
+            flipToBack(false);
+          });
+        if (balancePanel)
+          balancePanel.addEventListener("click", function (e) {
+            if (e.target.closest(".addr")) return;
+            flipToBack(false);
+          });
+        if (balAddrEl)
+          balAddrEl.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var t = balAddrEl.dataset.full || balAddrEl.textContent;
+            if (t && navigator.clipboard) {
+              navigator.clipboard.writeText(t).catch(function () {});
+            }
+          });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") flipToBack(false);
+        });
+
+        /* Camera */
+        var btnEnableCam = document.getElementById("btnEnableCam");
+        function startCamera() {
+          var video = document.getElementById("userCamera");
+          var fb = document.getElementById("camFallback");
+          if (!video) return;
+          if (
+            !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+          ) {
+            if (fb) fb.hidden = false;
+            return;
+          }
+          navigator.mediaDevices
+            .getUserMedia({ video: true, audio: false })
+            .then(function (stream) {
+              video.muted = true;
+              video.playsInline = true;
+              video.srcObject = stream;
+              var p = video.play();
+              if (p && p.then) p.catch(function () {});
+              if (fb) fb.remove();
+            })
+            .catch(function () {
+              if (fb) fb.hidden = false;
+            });
+        }
+        if (btnEnableCam) btnEnableCam.addEventListener("click", startCamera);
+        startCamera();
+
+        //-- Only speak if voice system is ready
+        setTimeout(() => {
+          speakWithPolistar(
+            "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen."
+          );
+        }, 1000);
+        //-- Welcome status
+        typeStatusMessage("✨ Welcome, Traveller. Your flame is near…");
+        showUserAddress();
+
+        // --------------------------------------------------------------
+        // Merged onkeydown listener (adapted to this page)
+        // --------------------------------------------------------------
+        function showSwapPanel(kind) {
+          setSheet(true); /* highlight tiles if desired */
+        }
+        function clearUserAddress() {
+          localStorage.removeItem("polyUser");
+          localStorage.removeItem("primaryAddress");
+          window.polyUser = null;
+
+          const shortEl = document.getElementById("balAddr");
+          if (shortEl) {
+            shortEl.textContent = "🧾 0x…";
+            shortEl.dataset.full = "";
+          }
+        }
+        async function displayPolistarBalance(firstTime = false) {
+          const travellerAddress = window.currentWalletAddress;
+          const polistarBalance = await getPolistarBalance(travellerAddress);
+
+          console.log("Polistar Balance:", polistarBalance);
+          document.getElementById("balPolistar").textContent =
+            polistarBalance.balance.toFixed(2);
+          if (document.getElementById("poliAmount")) {
+            console.log("In Poli Amount:", polistarBalance.balance.toFixed(2));
+            document.getElementById("poliAmount").textContent =
+              polistarBalance.balance.toFixed(2);
+          }
+
+          if (firstTime) {
+            // 🎁 Reward only if balance is zero
+            if (polistarBalance.balance === 0) {
+              typeStatusMessage("✨ Polistar is preparing your gift…");
+              startPolistarTimers();
+            } else {
+              typeStatusMessage("✨ Your balance has been restored.");
+            }
+
+            // Call this after MetaMask connect is successful:
+            setTimeout(async () => {
+              if (polistarBalance.balance > 10 && !hasOfferedEmber) {
+                hasOfferedEmber = true;
+
+                speakWithPolistar(
+                  "You have enough POLISTARs to talk to our professionals – Embers. I can connect you to some of them now. Would you like to do that?"
+                );
+              }
+            }, 10000); // 10 seconds after connect
+          }
+        }
+        async function displayOnchainBalance() {
+          const travellerAddress = window.currentWalletAddress;
+
+          const poliBalance = await getPoliBalance(travellerAddress);
+          const usdtBalance = await getUsdtBalance(travellerAddress);
+
+          // 🧾 Update all balances
+          document.getElementById("balUsdt").textContent =
+            usdtBalance.toFixed(2);
+
+          document.getElementById("balPoli").textContent =
+            poliBalance.toFixed(2);
+        }
+        async function getPoliBalance(address) {
+          const res = await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/getPoliBalance",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address }),
+            }
+          );
+
+          if (!res.ok) {
+            throw new Error("Failed to fetch POLI balance");
+          }
+
+          const data = await res.json(); // { amount: "123.45..." }
+          return parseFloat(data.amount || 0);
+        }
+
+        async function getPolistarBalance(uid) {
+          const res = await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/getPolistarBalance",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uid }),
+            }
+          );
+
+          if (!res.ok) throw new Error("Failed to fetch POLISTAR balance");
+
+          return await res.json(); // { balance, withdrawable, ... }
+        }
+
+        async function getUsdtBalance(address) {
+          const res = await fetch(
+            "https://us-central1-poliworld-f165b.cloudfunctions.net/getUsdtBalance",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ address }),
+            }
+          );
+
+          if (!res.ok) throw new Error("Failed to fetch USDT balance");
+          const data = await res.json(); // { amount: "12.34" }
+          console.log(data);
+          return parseFloat(data.amount || 0);
+        }
+        function showUserAddress() {
+          const stored = localStorage.getItem("polyUser");
+          const primary = localStorage.getItem("primaryAddress");
+          const address = primary || (stored && JSON.parse(stored).address);
+
+          const shortEl = document.getElementById("balAddr");
+          if (!shortEl) return;
+
+          if (address && address.length >= 10) {
+            const shortened = `${address.slice(0, 6)}…${address.slice(-4)}`;
+            shortEl.textContent = `🧾 ${shortened}`;
+            shortEl.dataset.full = address; // keeps click-to-copy working
+          } else {
+            shortEl.textContent = "🧾 0x…";
+            shortEl.dataset.full = "";
+          }
+        }
+        async function initiateMetaMaskLogin() {
+          if (!window.ethereum || !window.ethereum.isMetaMask) {
+            alert(
+              "MetaMask not detected. Please install it from https://metamask.io."
+            );
+            return;
+          }
+
+          try {
+            const provider = window.ethereum;
+            const accounts = await provider.request({
+              method: "eth_requestAccounts",
+            });
+
+            if (!accounts || accounts.length === 0) {
+              throw new Error("No MetaMask accounts found.");
+            }
+
+            const address = accounts[0];
+            console.log("Metamask Address:", address);
+            const message = `Sign in to Polyworld as ${address}`;
+            const signature = await ethereum.request({
+              method: "personal_sign",
+              params: [message, address],
+            });
+            console.log(
+              "Link Metamask current address:",
+              window.currentWalletAddress
+            );
+            const res = await axios.post(
+              "https://us-central1-poliworld-f165b.cloudfunctions.net/authenticateMetamask",
+              { address, message, signature }
+            );
+            //-- mergeSession first
+            await mergeSessions(window.currentWalletAddress, address);
+
+            const { travellerId, isNew } = res.data;
+            window.currentTravellerId = travellerId;
+            window.currentWalletAddress = address;
+
+            console.log("✅ MetaMask connected:", address);
+            if (
+              address != window.currentWalletAddress ||
+              window.polyUser.generated
+            ) {
+              const user = {
+                address: address,
+                privateKey: "",
+                generated: false,
+              };
+
+              localStorage.setItem("polyUser", JSON.stringify(user));
+              window.polyUser = user;
+              window.currentWalletAddress = user.address;
+            }
+
+            //const displayMessage = isNew
+            //  ? "✨ Welcome, Traveller!"
+            //  : "✨ Welcome back, Traveller!";
+            //typeWelcomeMessage(displayMessage);
+
+            //-- display user address
+            showUserAddress();
+            //-- display polistar/poli/usdt balance
+            displayPolistarBalance(true); //- Updating it first time
+            displayOnchainBalance();
+          } catch (error) {
+            console.error("❌ MetaMask login failed:", error);
+            alert("MetaMask connection failed. Please try again.");
+          }
+        }
+
+        function startEmberBurnLoop() {
+          if (emberBurnInterval) clearInterval(emberBurnInterval);
+
+          emberBurnInterval = setInterval(async () => {
+            if (currentSpeaker !== "polistar") {
+              if (!window.currentTravellerId) {
+                console.warn("🛑 No Traveller ID. Skipping burn.");
+                return;
+              }
+
+              console.log("🔥 Burning 1 POLISTAR for Ember session...");
+
+              const success = await burnPolistarToken(
+                window.currentTravellerId,
+                1,
+                `Auto-burn during ${currentSpeaker} session`
+              );
+
+              if (success) {
+                speakWithEmber(
+                  "1 POLISTAR has been spent to continue our conversation."
+                );
+                const updated = await getPolistarBalance(
+                  window.currentTravellerId
+                );
+                updateBalanceDisplay(
+                  updated.balance,
+                  updated.withdrawable || 0
+                );
+              }
+            }
+          }, 30000);
+        }
+
+        function stopEmberBurnLoop() {
+          if (emberBurnInterval) {
+            clearInterval(emberBurnInterval);
+            emberBurnInterval = null;
+            console.log("🛑 Ember session ended. Burn loop stopped.");
+          }
+        }
+
+        window.milestoneRewarded = {
+          "1min": false,
+          "3min": false,
+        };
+
+        function speakWithCurrent(text) {
+          if (currentSpeaker === "polistar") {
+            speakWithPolistar(text);
+          } else {
+            let voiceName = "";
+
+            switch (currentSpeaker) {
+              case "finance":
+                voiceName = "en-GB-George";
+                break;
+              case "travel":
+                voiceName = "Microsoft Zira";
+                break;
+              case "psychologist":
+                voiceName = "Microsoft Zira";
+                break;
+            }
+            console.log("Current voice:", voiceName);
+            speakWithEmber(text, voiceName);
+          }
+        }
+        function speakEmberIntro(role) {
+          let text = "";
+          let voiceName = "";
+          console.log("Selecting speaker: ", role);
+          switch (role) {
+            case "finance":
+              text =
+                "Welcome. I’m your financial Ember. We can explore your goals, investments, or strategies together.";
+              voiceName = "en-GB-George"; // British Male
+              break;
+
+            case "travel":
+              text =
+                "Hello Traveller. I’m your journey guide. Tell me where you’d like to go or what dreams you carry.";
+              voiceName = "en-AU-Neural2-A"; // Calmer Australian voice
+              break;
+
+            case "psychologist":
+              text =
+                "I’m here to listen and reflect. Let’s talk, and we’ll find clarity together.";
+              voiceName = "Microsoft Zira"; // American Female
+              break;
+          }
+
+          speakWithEmber(text, voiceName);
+        }
+        function speakWithEmber(text, preferredVoiceName = null) {
+          const synth = window.speechSynthesis;
+
+          const speak = () => {
+            const utterance = new SpeechSynthesisUtterance(text);
+
+            const voices = synth.getVoices();
+            let selectedVoice = null;
+
+            if (preferredVoiceName) {
+              selectedVoice = voices.find((v) => v.name === preferredVoiceName);
+            }
+            preferredVoiceName = false;
+            console.log("Preferred voice name:", preferredVoiceName);
+            // Fallbacks by role (you can expand this logic)
+            if (!selectedVoice && currentSpeaker === "psychologist") {
+              console.log("currentSpeaker", currentSpeaker);
+              selectedVoice = voices.find(
+                (v) =>
+                  v.lang.includes("en-US") &&
+                  (v.name.includes("Zira") ||
+                    v.name.includes("Catherine") ||
+                    v.name.includes("Hazel"))
+              );
+            } else if (!selectedVoice && currentSpeaker === "travel") {
+              selectedVoice = voices.find(
+                (v) => v.name.includes("James") && v.lang === "en-AU"
+              );
+            } else if (!selectedVoice && currentSpeaker === "finance") {
+              selectedVoice = voices.find(
+                (v) => v.name.includes("James") && v.lang === "en-GB"
+              );
+            }
+
+            // Final fallback
+            if (!selectedVoice) {
+              selectedVoice = voices[0];
+            }
+            console.log("Selected voice:", selectedVoice);
+            utterance.voice = selectedVoice;
+            synth.speak(utterance);
+          };
+
+          if (synth.getVoices().length > 0) {
+            speak();
+          } else {
+            synth.onvoiceschanged = () => speak();
+          }
+        }
+
+        function showEmberPanel() {
+          typeStatusMessage("Ember panel is not yet implemented here.");
+        }
+
+        async function processPromptInput(inputValue) {
+          const text = (inputValue || "").trim();
+          if (!text) return;
+
+          // Commands (local)
+          const cmd = text.toLowerCase();
+          if (cmd === "hidecamera") {
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "hidden";
+              box.style.opacity = 0;
+              speakWithPolistar("Camera is now hidden.");
+            }
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "showcamera") {
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "visible";
+              box.style.opacity = 1;
+              speakWithPolistar("Camera is now visible.");
+            }
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "clearaddress") {
+            clearUserAddress();
+            displayOnchainBalance();
+            displayPolistarBalance();
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "hidechat") {
+            chatArea.classList.add("invisible");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "showchat") {
+            chatArea.classList.remove("invisible");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "buypoli") {
+            showSwapPanel("buypoli");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "swappoli") {
+            showSwapPanel("swappoli");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "swappolistar") {
+            showSwapPanel("swappolistar");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "connectmetamask" || cmd === "metamask") {
+            initiateMetaMaskLogin();
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "transferpolistar") {
+            showSwapPanel("transferpolistar");
+            speakWithPolistar(
+              "Please enter the recipient user ID and amount to transfer."
+            );
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "hideswap" || cmd === "hidebuy") {
+            setSheet(false);
+            speakWithPolistar("Swap panel is now hidden.");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "close") {
+            setSheet(false);
+            chatArea.classList.add("invisible");
+            const box = document.getElementById("cameraBox");
+            if (box) {
+              box.style.visibility = "hidden";
+              box.style.opacity = 0;
+            }
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "yes" && hasOfferedEmber) {
+            speakWithPolistar(
+              "Please chat with our embers - professionals in specific areas."
+            );
+            showEmberPanel();
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "polistarback" || cmd === "stop") {
+            const avatarImg = document.getElementById("activeAvatarImg");
+            avatarImg.classList.remove("animate-ember");
+            avatarImg.setAttribute("src", "images/polistar.png");
+            avatarImg.classList.remove("animate-ember");
+            avatarImg.setAttribute("src", "images/polistar.gif");
+            currentSpeaker = "polistar";
+            currentEmber = null;
+            stopEmberBurnLoop();
+            speakWithPolistar("Polistar has returned. I’ll guide you again.");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "pause") {
+            stopEmberBurnLoop();
+            speakWithEmber("We paused our conversation.");
+            promptInput.value = "";
+            return;
+          }
+          if (cmd === "showembers") {
+            document
+              .getElementById("emberAvatarPanel")
+              ?.classList.remove("hidden");
+            speakWithPolistar("Here are the Embers available to guide you.");
+            promptInput.value = "";
+            return;
+          }
+          if (currentSpeaker !== "polistar" && emberBurnInterval == null) {
+            startEmberBurnLoop();
+          }
+
+          // Traveller message bubble
+          addMsg("user", text);
+
+          // Simulate Polistar thinking
+          const thinkingBubble = document.createElement("div");
+          thinkingBubble.className =
+            "self-center italic text-white/70 px-4 py-2 animate-pulse";
+          thinkingBubble.id = "thinkingBubble";
+          thinkingBubble.textContent = currentSpeaker + " is thinking...";
+          chatArea.appendChild(thinkingBubble);
+          chatArea.scrollTop = chatArea.scrollHeight;
+
+          setTimeout(async () => {
+            chatArea.removeChild(thinkingBubble);
+            const travellerAddress = window.currentWalletAddress;
+            const sessionId =
+              travellerAddress || `guest-${crypto.randomUUID()}`;
+            try {
+              const res = await fetch(
+                "https://us-central1-poliworld-f165b.cloudfunctions.net/chatHandler",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    message: text,
+                    sessionId: sessionId,
+                    userAddress: travellerAddress,
+                    ember: currentEmber,
+                  }),
+                }
+              );
+              const data = await res.json();
+              const reply = data.reply || "Hmm… I didn’t quite catch that.";
+
+              // Reply-driven commands
+              const r = reply.toLowerCase();
+              /*               if (r === "hidechat") {
+                chatArea.classList.add("invisible");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "showchat") {
+                chatArea.classList.remove("invisible");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "buypoli") {
+                showSwapPanel("buypoli");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "swappoli") {
+                showSwapPanel("swappoli");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "swappolistar") {
+                showSwapPanel("swappolistar");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "transferpolistar") {
+                showSwapPanel("transferpolistar");
+                speakWithPolistar(
+                  "Please enter the recipient user ID and amount to transfer."
+                );
+                promptInput.value = "";
+                return;
+              }
+              if (r === "hideswap") {
+                setSheet(false);
+                speakWithPolistar("Swap panel is now hidden.");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "close") {
+                setSheet(false);
+                chatArea.classList.add("invisible");
+                const box = document.getElementById("cameraBox");
+                if (box) {
+                  box.style.visibility = "hidden";
+                  box.style.opacity = 0;
+                }
+                promptInput.value = "";
+                return;
+              }
+              if (r === "yes" && hasOfferedEmber) {
+                speakWithPolistar(
+                  "Please chat with our embers - professionals in specific areas."
+                );
+                showEmberPanel();
+                promptInput.value = "";
+                return;
+              }
+              if (r === "stop") {
+                const avatarImg = document.getElementById("activeAvatarImg");
+                avatarImg.classList.remove("animate-ember");
+                avatarImg.setAttribute("src", "images/polistar.png");
+                avatarImg.classList.remove("animate-ember");
+                avatarImg.setAttribute("src", "images/polistar.gif");
+                currentSpeaker = "polistar";
+                currentEmber = null;
+                stopEmberBurnLoop();
+                speakWithPolistar(
+                  "Polistar has returned. I’ll guide you again."
+                );
+                promptInput.value = "";
+                return;
+              }
+              if (r === "pause") {
+                stopEmberBurnLoop();
+                speakWithEmber("We paused our conversation.");
+                promptInput.value = "";
+                return;
+              }
+              if (r === "showembers") {
+                document
+                  .getElementById("emberAvatarPanel")
+                  ?.classList.remove("hidden");
+                speakWithPolistar(
+                  "Here are the Embers available to guide you."
+                );
+                promptInput.value = "";
+                return;
+              }
+
+              if (currentSpeaker !== "polistar" && emberBurnInterval == null) {
+                startEmberBurnLoop();
+              }
+            */
+              renderHostReply(reply);
+            } catch (err) {
+              console.error("❌ Chat handler failed:", err);
+              renderHostReply(
+                "Sorry, something went wrong talking to Polistar."
+              );
+            }
+          }, 1500);
+
+          if (!firstResponseSent) {
+            firstResponseSent = true;
+            loadExistingUser();
+            // Open balances on first response in this UI
+            flipToBack(true);
+            showUserAddress();
+            displayPolistarBalance(true);
+            displayOnchainBalance();
+          }
+        }
+
+        function startPolistarTimers() {
+          // - Reward for signing up
+          setTimeout(async () => {
+            travellerId = window.travellerId;
+            address = window.currentWalletAddress;
+            await mintPolistarReward(travellerId, address, 5);
+            //showCoinSplash(5);
+            typeStatusMessage("🎁 +5 POLISTAR received!");
+            speakWithPolistar("You’ve received 5 polistars for signing in.");
+            //status.textContent = "🎁 +5 POLISTAR received!";
+            document.getElementById("poliAmount").textContent = 5;
+          }, 10000);
+
+          // 1-minute reward
+          setTimeout(async () => {
+            if (!window.milestoneRewarded["1min"]) {
+              travellerId = window.travellerId;
+              address = window.currentWalletAddress;
+              await mintPolistarReward(travellerId, address, 10);
+              //showCoinSplash(10);
+              typeStatusMessage("⏱️ +10 POLISTAR for your attention");
+              speakWithPolistar(
+                "You’ve received 10 polistars for spending a moment with me."
+              );
+              window.milestoneRewarded["1min"] = true;
+
+              const polistar = await getPolistarBalance(address);
+              document.getElementById("balPolistar").textContent = parseInt(
+                polistar.balance
+              );
+            }
+          }, 60000);
+
+          // - set timer for talking with POLISTAR
+          // 3-minute reward
+          setTimeout(async () => {
+            if (!window.milestoneRewarded["3min"]) {
+              await mintPolistarReward(travellerId, address, 10);
+              //showCoinSplash(10);
+              typeStatusMessage("⏳ +10 more POLISTAR for your presence");
+              speakWithPolistar(
+                "Another 10 polistars, gifted for your continued presence."
+              );
+              window.milestoneRewarded["3min"] = true;
+
+              const polistar = await getPolistarBalance(address);
+              document.getElementById("balPolistar").textContent = parseInt(
+                polistar.balance
+              );
+            }
+          }, 180000);
+        }
+
+        // Wire Enter to processPromptInput, Send button too
+        prompt.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.keyCode === 13) {
+            e.preventDefault();
+            processPromptInput(prompt.value);
+            prompt.value = "";
+          }
+        });
+        btnSend.addEventListener("click", function () {
+          processPromptInput(prompt.value);
+          prompt.value = "";
+        });
+
+        /* Optional: keep legacy handler on "/poli" via Ctrl+Enter */
+        prompt.addEventListener("keydown", function (e) {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            e.preventDefault();
+            handleSendSimple();
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

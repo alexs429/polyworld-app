@@ -12,6 +12,7 @@ exports.bridgeToken = functions.https.onRequest((req, res) => {
     try {
       const { userId, tokenId, amount, toAsset, bridgeDirection } = req.body;
       const db = admin.firestore();
+      const toNum = (v) => (v == null || v === "" ? 0 : Number(v));
 
       if (
         !userId ||
@@ -70,8 +71,8 @@ exports.bridgeToken = functions.https.onRequest((req, res) => {
         }
 
         await tokenRef.update({
-          balance: (balanceData.balance || 0) - amount,
-          withdrawableBalance: (balanceData.withdrawableBalance || 0) - amount,
+          balance: (toNum(balanceData.balance) || 0) - amount,
+          withdrawableBalance: (toNum(balanceData.withdrawableBalance) || 0) - amount,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -88,8 +89,8 @@ exports.bridgeToken = functions.https.onRequest((req, res) => {
         }
 
         await tokenRef.update({
-          balance: (balanceData.balance || 0) + amount,
-          withdrawableBalance: (balanceData.withdrawableBalance || 0) + amount,
+          balance: (toNum(balanceData.balance) || 0) + amount,
+          withdrawableBalance: (toNum(balanceData.withdrawableBalance) || 0) + amount,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
