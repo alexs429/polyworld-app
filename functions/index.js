@@ -2,6 +2,7 @@
 require('dotenv').config(); // ✅ Only place this here for local dev
 const functions = require("firebase-functions");
 
+
 // ✅ Root health check
 exports.root = functions.https.onRequest((req, res) => {
   res.send({

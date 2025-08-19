@@ -2,7 +2,7 @@ const { ethers } = require("ethers");
 const { POLI_ABI } = require("./abi/POLI_ABI");
 
 const POLI_ADDRESS = process.env.POLI_ADDRESS;
-const TREASURY_PRIVATE_KEY = process.env.TREASURY_KEY;
+const TREASURY_PRIVATE_KEY = process.env.PRIVATE_TREASURY_KEY;
 const RPC_URL = process.env.RPC_URL;
 
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL);

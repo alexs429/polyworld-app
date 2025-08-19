@@ -9,7 +9,7 @@ const POLI_ADDRESS = process.env.POLI_ADDRESS;
 
 const mintPoli = async (toAddress, amount) => {
   try {
-    const treasuryKey = process.env.TREASURY_KEY;
+    const treasuryKey = process.env.PRIVATE_TREASURY_KEY;
     const rpcUrl = process.env.RPC_URL;
 
     if (!treasuryKey || !rpcUrl) {

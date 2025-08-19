@@ -5,7 +5,7 @@ const { POLI_ABI } = require("../utils/abi/POLI_ABI");
 
 const POLI_ADDRESS = process.env.POLI_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
-const TREASURY_PRIVATE_KEY = process.env.TREASURY_KEY;
+const TREASURY_PRIVATE_KEY = process.env.PRIVATE_TREASURY_KEY;
 
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
 const signer = new ethers.Wallet(TREASURY_PRIVATE_KEY, provider);

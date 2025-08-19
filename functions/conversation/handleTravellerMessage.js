@@ -8,7 +8,7 @@ exports.handleTravellerMessage = functions.https.onCall(async (data, context) =>
   const db = getFirestore();
 
   // 🌟 Default to Polistar
-  let projectId = "poliworld-f165b";
+  let projectId = "polyworld-2f581";
   let location = "australia-southeast1";
   let agentId = "YOUR_POLISTAR_AGENT_ID"; // <- replace with your actual Polistar agent ID
   let sessionId = uid;

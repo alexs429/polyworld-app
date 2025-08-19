@@ -5,7 +5,7 @@
 
 
 # 🔐 Treasury private key (no 0x prefix)
-firebase functions:secrets:set TREASURY_KEY
+firebase functions:secrets:set PRIVATE_TREASURY_KEY
 
 # 🌐 Sepolia RPC URL (e.g. Alchemy endpoint)
 firebase functions:secrets:set RPC_URL

@@ -1,17 +1,28 @@
+// balances.js — token-aware, same-origin calls
 import { ENDPOINTS } from "./config.js";
 import { typeStatusMessage } from "./ui.js";
 
-// helper
 const toNum = (v) => (v == null || v === "" ? 0 : Number(v));
 
+async function authHeadersRequired() {
+  if (window.authReady) await window.authReady;
+  const token = await window.getIdToken();
+  return { "Content-Type":"application/json", "Authorization":`Bearer ${token}` };
+}
+
 export async function getPolistarBalance(uid) {
+  
   const res = await fetch(ENDPOINTS.getPolistarBalance, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeadersRequired(),
     body: JSON.stringify({ uid }),
+    cache: "no-store",
   });
-  if (!res.ok) throw new Error("Failed to fetch POLISTAR balance");
-  const data = await res.json(); // may be strings
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch POLISTAR balance (${res.status}) ${text}`);
+  }
+  const data = await res.json();
   return {
     ...data,
     balance: toNum(data.balance),
@@ -23,43 +34,37 @@ export async function getPolistarBalance(uid) {
 export async function getPoliBalance(address) {
   const res = await fetch(ENDPOINTS.getPoliBalance, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeadersRequired(),
     body: JSON.stringify({ address }),
+    cache: "no-store",
   });
+  
   if (!res.ok) throw new Error("Failed to fetch POLI balance");
   const data = await res.json();
-  return toNum(data.amount); // already number in one line
+  return toNum(data.amount);
 }
 
 export async function getUsdtBalance(address) {
   const res = await fetch(ENDPOINTS.getUsdtBalance, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeadersRequired(),
     body: JSON.stringify({ address }),
+    cache: "no-store",
   });
   if (!res.ok) throw new Error("Failed to fetch USDT balance");
   const data = await res.json();
   return toNum(data.amount);
 }
-export function updateBalanceDisplay(balance, withdrawable) {
-  poliAmount;
-  const a = document.getElementById("balPolistar");
-  if (a)
-    a.textContent = Number(balance || 0).toLocaleString(undefined, {
-      maximumFractionDigits: 4,
-    });
 
-  const c = document.getElementById("poliAmount");
-  if (c)
-    c.textContent = Number(balance || 0).toLocaleString(undefined, {
-      maximumFractionDigits: 4,
-    });
+export function updateBalanceDisplay(balance, withdrawable) {
+  const a = document.getElementById("balPolistar");
+  if (a) a.textContent = Number(balance || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+  const c = document.getElementById("poliAmount"); // NOTE: this currently mirrors Polistar; rename if meant for POLI
+  if (c) c.textContent = Number(balance || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
   const w = document.getElementById("withdrawableBalance");
-  if (w)
-    w.textContent = Number(withdrawable || 0).toLocaleString(undefined, {
-      maximumFractionDigits: 4,
-    });
+  if (w) w.textContent = Number(withdrawable || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 export async function displayOnchainBalance() {
@@ -70,18 +75,10 @@ export async function displayOnchainBalance() {
       getPoliBalance(addr),
       getUsdtBalance(addr).catch(() => 0),
     ]);
-    const poliTxt = Number(poli).toLocaleString(undefined, {
-      maximumFractionDigits: 4,
-    });
-    const usdtTxt = Number(usdt).toLocaleString(undefined, {
-      maximumFractionDigits: 4,
-    });
-
     const elPoli = document.getElementById("balPoli");
-    if (elPoli) elPoli.textContent = poliTxt;
-
+    if (elPoli) elPoli.textContent = Number(poli).toLocaleString(undefined, { maximumFractionDigits: 4 });
     const elUsdt = document.getElementById("balUsdt");
-    if (elUsdt) elUsdt.textContent = usdtTxt;
+    if (elUsdt) elUsdt.textContent = Number(usdt).toLocaleString(undefined, { maximumFractionDigits: 4 });
   } catch (e) {
     console.error(e);
     typeStatusMessage("⚠️ Could not load on-chain balances right now.");
@@ -89,17 +86,17 @@ export async function displayOnchainBalance() {
 }
 
 export async function displayPolistarBalance(firstTime = false) {
+  if (window.authReady) await window.authReady; // ensure token exists
   const addr = window.currentWalletAddress;
   if (!addr) return;
   try {
-    const ps = await getPolistarBalance(addr);
+    const ps = await getPolistarBalance(addr); // your convention: uid == wallet
     const bal = Number(ps.balance || 0);
     updateBalanceDisplay(bal, ps.withdrawable);
     if (firstTime) {
       if (bal === 0) {
         typeStatusMessage("✨ Polistar is preparing your gift…");
-        if (typeof window.startPolistarTimers === "function")
-          window.startPolistarTimers();
+        if (typeof window.startPolistarTimers === "function") window.startPolistarTimers();
       } else {
         typeStatusMessage("✨ Your balance has been restored.");
       }
@@ -116,11 +113,12 @@ export async function mintPolistarReward(uid, address, amount) {
   try {
     await fetch(ENDPOINTS.rewardPolistar, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeadersRequired(),
       body: JSON.stringify({ uid, address, amount }),
+      cache: "no-store",
     });
     const el = document.getElementById("balPolistar");
-    if (el) el.textContent = parseInt(el.textContent || "0") + amount;
+    if (el) el.textContent = parseInt(el.textContent || "0", 10) + amount;
     return true;
   } catch (e) {
     console.error("Minting failed:", e);
@@ -128,17 +126,14 @@ export async function mintPolistarReward(uid, address, amount) {
   }
 }
 
-export async function burnPolistarToken(
-  userId,
-  amount = 1,
-  reason = "Ember session"
-) {
+export async function burnPolistarToken(userId, amount = 1, reason = "Ember session") {
   if (!userId) throw new Error("Missing userId for burn");
   const res = await fetch(ENDPOINTS.burnToken, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await authHeadersRequired(),
     body: JSON.stringify({ userId, tokenId: "POLISTAR", amount, reason }),
+    cache: "no-store",
   });
   if (!res.ok) throw new Error("Burn failed");
-  return res.json().catch(() => ({})); // return backend payload if any
+  return res.json().catch(() => ({}));
 }

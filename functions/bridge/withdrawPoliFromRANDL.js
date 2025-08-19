@@ -51,7 +51,7 @@ exports.withdrawPoliFromRANDL = functions.https.onCall(async (_data, context) =>
 
   // On-chain mint
   const POLI_ADDRESS = process.env.POLI_ADDRESS;
-  const PRIVATE_KEY = process.env.TREASURY_KEY;
+  const PRIVATE_KEY = process.env.PRIVATE_TREASURY_KEY;
   const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
   const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
   const poliContract = new ethers.Contract(POLI_ADDRESS, POLI_ABI, wallet);

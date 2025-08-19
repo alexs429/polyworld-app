@@ -10,7 +10,7 @@ import {
 const firebaseConfig = {
   apiKey: "fake-api-key",
   authDomain: "localhost",
-  projectId: "poliworld-f165b"
+  projectId: "polyworld-2f581"
 };
 
 // Initialize app and emulator

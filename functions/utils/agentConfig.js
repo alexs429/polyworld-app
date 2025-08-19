@@ -5,26 +5,26 @@ function getAgentConfig(type) {
   switch (type) {
     case "travel":
       return {
-        projectId: "poliworld-f165b",
-        agentId: "3b598560-d039-480c-80c1-c5c4a040e8d5",
+        projectId: "polyworld-2f581",
+        agentId: "7776b620-5183-440e-8ec7-65912c072979",
         location
       };
     case "finance":
       return {
-        projectId: "poliworld-f165b",
-        agentId: "7e9512d2-6bcd-44a7-95f0-c72840afd971",
+        projectId: "polyworld-2f581",
+        agentId: "8a328678-b767-47ba-962e-583eb0cb61e9",
         location
       };
     case "psych", "psychologist":
       return {
-        projectId: "poliworld-f165b",
-        agentId: "a3130420-8639-457f-bb5f-257d43f6858a",
+        projectId: "polyworld-2f581",
+        agentId: "fd5c4cc7-a36a-4d3c-8837-c70e6e81ccf7",
         location
       };
     default:
       return {
-        projectId: "poliworld-f165b",
-        agentId: "c2608e3f-55c3-4ef8-b9b6-3b96104c2d8a",
+        projectId: "polyworld-2f581",
+        agentId: "8870deba-11df-47af-a0ee-5096c0675396",
         location
       };
   }

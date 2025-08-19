@@ -1,8 +1,8 @@
 {
   "projects": {
-    "default": "poliworld-f165b",
-    "poliworld-dev": "poliworld-f165b",
-    "polyworld": "poliworld-f165b"
+    "default": "polyworld-2f581",
+    "poliworld-dev": "polyworld-2f581",
+    "polyworld": "polyworld-2f581"
   },
   "targets": {},
   "etags": {}

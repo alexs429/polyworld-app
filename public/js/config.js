@@ -1,4 +1,4 @@
-export const GCF = "https://us-central1-poliworld-f165b.cloudfunctions.net";
+export const GCF = "https://polyworld-2f581.web.app/api";
 export const ENDPOINTS = {
   getPoliBalance: `${GCF}/getPoliBalance`,
   getUsdtBalance: `${GCF}/getUsdtBalance`,
