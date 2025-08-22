@@ -50,7 +50,7 @@
           <div class="controls">
             <button
               id="btnTTS"
-              class="icon-btn"
+              class="icon-btn hud-tts"
               aria-pressed="false"
               title="Toggle voice output"
             >
@@ -135,8 +135,9 @@
 
       <!-- Composer + function sheet -->
       <div class="composer-wrap" id="composerWrap">
+        <div class="status-line" id="statusLine">Waiting…</div>
         <div class="composer" role="group" aria-label="Message composer">
-          <button id="btnPlus" class="btn" title="Functions">＋</button>
+          <button id="btnPlus" class="btnGreen" title="Functions">＋</button>
           <textarea
             id="prompt"
             rows="1"
@@ -243,22 +244,6 @@
             </button>
             <span class="pw-tool-txt">Embers</span>
           </div>
-        </div>
-      </div>
-      <!-- Ember chooser -->
-      <div
-        id="emberPanel"
-        class="func-sheet"
-        role="dialog"
-        aria-label="Choose an Ember"
-      >
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <div class="tiles">
-          <button class="tile" data-ember="finance">💹 Finance</button>
-          <button class="tile" data-ember="travel">🧭 Travel</button>
-          <button class="tile" data-ember="psychologist">
-            🧠 Psychologist
-          </button>
         </div>
       </div>
     </div>

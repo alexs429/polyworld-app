@@ -44,7 +44,7 @@ window.addEventListener("DOMContentLoaded", () => {
       displayPolistarBalance(false);
 
       speakWithPolistar(
-        "Greetings, Traveller. I am Polistar… born of flame and thought. Ask, and I shall listen."
+        "Greetings, Traveller. I am Poly… born of flame and thought. Ask, and I shall listen."
       );
     }, 1000);
     typeStatusMessage("✨ Welcome, Traveller. Your flame is near…");

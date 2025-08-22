@@ -7,6 +7,7 @@ const toNum = (v) => (v == null || v === "" ? 0 : Number(v));
 async function authHeadersRequired() {
   if (window.authReady) await window.authReady;
   const token = await window.getIdToken();
+
   return { "Content-Type":"application/json", "Authorization":`Bearer ${token}` };
 }
 
@@ -95,7 +96,7 @@ export async function displayPolistarBalance(firstTime = false) {
     updateBalanceDisplay(bal, ps.withdrawable);
     if (firstTime) {
       if (bal === 0) {
-        typeStatusMessage("✨ Polistar is preparing your gift…");
+        typeStatusMessage("✨ Poly is preparing your gift…");
         if (typeof window.startPolistarTimers === "function") window.startPolistarTimers();
       } else {
         typeStatusMessage("✨ Your balance has been restored.");

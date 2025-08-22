@@ -1,5 +1,5 @@
 // chat.js
-import { els, addMsg, setSheet, typeStatusMessage, flipToBack } from "./ui.js";
+import { els, addMsg, setSheet, typeStatusMessage, flipToBack,startStatusBlinking, stopStatusBlinking } from "./ui.js";
 import {
   displayOnchainBalance,
   displayPolistarBalance,
@@ -14,7 +14,7 @@ import {
   mergeSessions,
 } from "./wallet.js";
 import { ENDPOINTS, DEV } from "./config.js";
-import { speakWithPolistar, speakWithEmber } from "./speech.js";
+import { stopEmberNow, speakWithPolistar, speakWithEmber } from "./speech.js";
 import {
   showEmberPanel,
   onEmberSelected,
@@ -177,7 +177,7 @@ async function executeTransferPolistar() {
         simulate ? " (simulated)" : ""
       }.`
     );
-    typeStatusMessage("Transfer complete. Updating balances…");
+    typeStatusMessage("Transfer complete!");
     await displayPolistarBalance(); // refresh POLISTAR panel
     endAction();
   } catch (err) {
@@ -264,7 +264,7 @@ async function executeSwapPolistar() {
       "assistant",
       `✅ Swapped ${poli} POLI → ${polistar.toFixed(2)} POLISTAR.`
     );
-    typeStatusMessage("Swap complete. Updating balances…");
+    typeStatusMessage("Swap complete!");
 
     await displayOnchainBalance();
     await displayPolistarBalance();
@@ -394,6 +394,7 @@ async function executeBuyPoli() {
         const approveTx = await approveRes.json(); // raw tx fields
         if (approveTx && approveTx.to) {
           typeStatusMessage("Approving USDT spend…");
+
           const sent = await signer.sendTransaction(approveTx);
           await provider.waitForTransaction(sent.hash, 1, 60_000);
           addMsg("assistant", "✅ USDT approved.");
@@ -425,7 +426,7 @@ async function executeBuyPoli() {
       "assistant",
       `✅ Purchased ${poli.toFixed(2)} POLI with ${usdt} USDT.`
     );
-    typeStatusMessage("✅ POLI successfully received. Updating balances…");
+    typeStatusMessage("✅ POLI successfully received!");
     await displayOnchainBalance();
 
     endAction();
@@ -539,13 +540,13 @@ export function setupPrompt() {
         method: "personal_sign",
         params: [message, address],
       });
-
+      startStatusBlinking("Initiating Metamask connection...");
+      
       await axios.post(ENDPOINTS.authenticateMetamask, {
         address,
         message,
         signature,
       });
-      await mergeSessions(window.currentWalletAddress, address);
 
       if (
         address !== window.currentWalletAddress ||
@@ -554,14 +555,17 @@ export function setupPrompt() {
         const user = { address, privateKey: "", generated: false };
         localStorage.setItem("polyUser", JSON.stringify(user));
         window.polyUser = user;
+        await mergeSessions(address, address);
       }
 
       window.currentWalletAddress = address;
       window.currentTravellerId = address;
 
+      stopStatusBlinking("Metamask is authenticated!");
       showUserAddress();
       await displayPolistarBalance(true);
       await displayOnchainBalance();
+
     } catch (err) {
       console.error("❌ MetaMask login failed:", err);
       alert("MetaMask connection failed. Please try again.");
@@ -806,7 +810,7 @@ export function setupPrompt() {
     const thinking = document.createElement("div");
     thinking.className =
       "self-center italic text-white/70 px-4 py-2 animate-pulse";
-    thinking.textContent = currentSpeaker + " is thinking...";
+    thinking.textContent = currentSpeaker.replace("polistar", "poly") + " is thinking...";
     els.chatArea().appendChild(thinking);
     els.chatArea().scrollTop = els.chatArea().scrollHeight;
 
@@ -835,6 +839,7 @@ export function setupPrompt() {
     process(prompt.value);
     prompt.value = "";
 
+
     // shrink textarea back to one line
     if (typeof prompt.__pw_autogrow_reset__ === "function") {
       prompt.__pw_autogrow_reset__();
@@ -847,6 +852,7 @@ export function setupPrompt() {
 
   // Send button
   btnSend?.addEventListener("click", handleSend);
+
 
   // Enter sends, Shift+Enter = new line
   prompt?.addEventListener("keydown", (e) => {

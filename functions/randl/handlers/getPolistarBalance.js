@@ -13,6 +13,7 @@ exports.getPolistarBalance = functions.https // 👈 match your deployed region
     // CORS preflight + wrapper (harmless even same-origin)
     cors(req, res, async () => {
       try {
+        console.log('In getPolistarBalance', req.method);
         if (req.method !== "POST") {
           return res.status(405).send("Method Not Allowed");
         }

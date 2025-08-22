@@ -11,22 +11,21 @@ export const els = {
 let __statusTimer = null;
 
 export function typeStatusMessage(text, cb) {
-  const chat = els.chatArea();
-  if (!chat) return;
-  let status = chat.querySelector(".status-line");
-  if (!status) {
-    status = document.createElement("div");
-    status.className = "status-line";
-    chat.appendChild(status);
-  }
+  const status = document.getElementById("statusLine");
+  if (!status) return;
+
+  // Add glow effect
+  status.classList.add("active");
+  setTimeout(() => status.classList.remove("active"), 2000);
+
   if (__statusTimer) clearInterval(__statusTimer);
   status.textContent = "";
+
   let i = 0;
   const speed = 40;
   __statusTimer = setInterval(() => {
     if (i < text.length) {
       status.textContent += text[i++];
-      chat.scrollTop = chat.scrollHeight;
     } else {
       clearInterval(__statusTimer);
       __statusTimer = null;
@@ -34,6 +33,27 @@ export function typeStatusMessage(text, cb) {
     }
   }, speed);
 }
+
+export function startStatusBlinking(text = "Processing…") {
+  const status = document.getElementById("statusLine");
+  if (!status) return;
+
+  status.textContent = text;
+  status.classList.add("blinking");
+}
+
+export function stopStatusBlinking(text = "Done.") {
+  const status = document.getElementById("statusLine");
+  if (!status) return;
+
+  status.classList.remove("blinking");
+  status.textContent = text;
+
+  // Optional glow on completion
+  status.classList.add("active");
+  setTimeout(() => status.classList.remove("active"), 2000);
+}
+
 
 export function addMsg(role, text) {
   const row = document.createElement("div");
