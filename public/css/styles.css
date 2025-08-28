@@ -437,7 +437,44 @@ body { font: 16px/1.5 var(--ui-font); }
 @media (prefers-reduced-motion: reduce) {
   .tool { transition: none; }
 }
+@media (min-width: 800px) {
+  .ember-list {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+}
+@media (min-width: 700px) {
+  .ember-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 420px) {
+  .ember-back {
+    font-size: 11px;
+    padding: 8px 6px;
+    line-height: 1.4;
+  }
 
+  .ember-back .field {
+    font-size: 10px;
+  }
+
+  .ember-back .title {
+    font-size: 13px;
+  }
+
+  .ember-back .qr {
+    width: 64px;
+    height: 64px;
+    margin-top: 6px;
+  }
+
+  .ember-back .proof-link {
+    font-size: 9px;
+  }
+}
+.ember-avatar-clickable {
+  cursor: pointer;
+}
 /* Grid of cards */
 .pw-tool-tray {
   display: grid;
@@ -544,31 +581,15 @@ body { font: 16px/1.5 var(--ui-font); }
   margin-bottom: 6px;
   color: #0b1220;
 }
-.ember-list{
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-.ember-btn{
-  display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,.06);
-  background: #fff;
-  cursor: pointer;
-  transition: transform .06s ease, box-shadow .12s ease;
-}
 .ember-btn:active{ transform: scale(.99); }
-.ember-avatar{
-  width: 48px; height: 48px; border-radius: 50%;
+.ember-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 9999px;
+  margin-bottom: 10px;
   object-fit: cover;
-  box-shadow: 0 3px 10px rgba(0,0,0,.14);
+  box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.2);
 }
-.ember-name{ font-weight: 700; font-size: 13px; color:#111827; }
-.ember-desc{ font-size: 11px; color:#6b7280; margin-top:2px; }
 
 /* Mini Polistar — crisp circle, no inner white halo */
 .mini-host{
@@ -603,3 +624,451 @@ body { font: 16px/1.5 var(--ui-font); }
 
 @media (max-width: 640px) { .row { gap: 18px; margin-top: 28px; } .bubble { width: var(--bubble-m); height: var(--bubble-m); } }
 @media (prefers-reduced-motion: reduce) { .composer, .bubble, .flip-inner { transition: none; } }
+
+/* ===== Embers catalogue (scoped) ===== */
+#embersGrid {
+  /* local vars so we don't touch your global :root */
+  --pw-card-bg: #0f1420;
+  --pw-card-fg: #e6f0ff;
+  --pw-muted:   #9bb1c9;
+}
+
+/* Grid container */
+#embersGrid.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  padding: 24px;
+}
+
+/* Card */
+#embersGrid .ember-card {
+  position: relative;
+  background: var(--pw-card-bg);
+  color: var(--pw-card-fg);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+
+  /* JS sets --bg to the resolved background image */
+  background-image: var(--bg), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  background-size: cover;
+  background-position: center;
+}
+
+/* Avatar */
+#embersGrid .ember-card .avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 88px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
+}
+
+/* Text/meta */
+#embersGrid .ember-card .meta { flex: 1; }
+#embersGrid .ember-card h3 { margin: 0 0 4px; font-size: 18px; }
+#embersGrid .tagline { margin: 0 0 6px; color: var(--pw-muted); font-size: 14px; }
+#embersGrid .desc { margin: 0 0 10px; font-size: 13px; line-height: 1.35; color: #cfe1ff; }
+
+#embersGrid .info { font-size: 12px; display: grid; gap: 4px; }
+#embersGrid .info code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  background: #0a0f1a;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+/* Actions */
+#embersGrid .actions { margin-top: 10px; }
+#embersGrid .actions .start {
+  background: var(--accent, #6c8ef5); /* JS can set --accent per Ember */
+  color: white;
+  border: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* Skeletons (loading state) */
+@keyframes pw-pulse { 0%{opacity:.5} 50%{opacity:1} 100%{opacity:.5} }
+#embersGrid .skeleton { animation: pw-pulse 1.6s infinite; }
+#embersGrid .skeleton .avatar { width: 88px; height: 88px; border-radius: 50%; background: #1b263b; }
+#embersGrid .skeleton .line { height: 12px; background: #1b263b; border-radius: 6px; margin: 8px 0; }
+#embersGrid .skeleton .w-60 { width: 60%; } 
+#embersGrid .skeleton .w-90 { width: 90%; } 
+#embersGrid .skeleton .w-40 { width: 40%; }
+
+/* Flip card container */
+.ember-flip-card {
+  flex: 0 0 auto;
+  height: 220px;
+  border-radius: 16px;
+  perspective: 1000px;
+  position: relative;
+
+  /* Glass style */
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px) saturate(1.5);
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+
+
+/* Flip inner (rotates when flipped) */
+.ember-flip-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+
+/* When flipped */
+.ember-flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+/* Shared styles for both faces */
+.ember-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 12px;
+  text-align: center;
+}
+
+/* Front face */
+.ember-front {
+  background: #fff;
+  z-index: 2;
+  transform: rotateY(0deg);
+}
+
+.ember-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.05);
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.ember-btn:hover {
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.ember-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 9999px;
+  margin-bottom: 10px;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.ember-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #111827;
+  text-align: center;
+}
+
+.ember-desc {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* Back face */
+.ember-back {
+  background: #1e1e1e;
+  color: #e6e6e6;
+  transform: rotateY(180deg);
+  font-size: 12px;
+  gap: 4px;
+  justify-content: start;
+  padding: 10px 8px;
+}
+
+.ember-back .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #8aff8a;
+  margin-bottom: 4px;
+}
+
+.ember-back .token-id {
+  font-size: 12px;
+  color: #ccc;
+  margin-bottom: 2px;
+}
+
+.ember-back .field {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.3;
+}
+
+.ember-back .qr {
+  margin-top: 6px;
+  width: 72px;         /* smaller */
+  height: 72px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ember-back .proof-link {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.ember-back a {
+  color: #66ccff;
+  text-decoration: none;
+}
+
+#emberListCard {
+  background: transparent;          /* remove glass effect */
+  padding: 0;                       /* remove extra gap */
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+}
+
+.ember-card-head {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.ember-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 16px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 12px 8px;
+  backdrop-filter: blur(12px);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+.ember-list::-webkit-scrollbar {
+  display: none;
+}
+.ember-list {
+  -ms-overflow-style: none;  /* IE/Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.ember-list::-webkit-scrollbar {
+  display: none;
+}
+
+.ember-list {
+  -ms-overflow-style: none;  /* IE/Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.ember-flip-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  width: 70px;
+  height: 70px;
+  perspective: 600px;
+}
+.ember-flip-badge .flip-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  text-align: center;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+  background: #111827;
+  color: white;
+  font-size: 24px;
+  line-height: 70px;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0,0,0,0.3);
+}
+.ember-flip-badge .flipped {
+  transform: rotateY(180deg);
+}
+.ember-flip-badge .face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 12px;
+}
+.ember-flip-badge .back {
+  transform: rotateY(180deg);
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 8px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #1f2937;
+}
+.ember-flip-badge .label {
+  font-weight: 600;
+  color: #60a5fa;
+}
+.ember-flip-badge .hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.ember-flip-badge .link {
+  color: #93c5fd;
+  text-decoration: none;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.ember-flip-badge .link:hover {
+  text-decoration: underline;
+}
+
+#activeAvatarImg {
+  filter: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+.ember-avatar-flip-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  perspective: 1000px;
+}
+
+.ember-avatar-inner {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+}
+
+.ember-avatar-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.ember-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ember-flip-front {
+  transform: rotateY(0deg);
+  z-index: 2;
+}
+
+.ember-flip-back {
+  transform: rotateY(180deg);
+  background: #1f2937;
+  color: white;
+  font-size: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.ember-avatar-full {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.tick-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.nft-qr {
+  width: 80px;
+  height: 80px;
+  margin: 10px 0;
+}
+
+.nft-link {
+  color: #93c5fd;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.nft-link:hover {
+  text-decoration: underline;
+}
+
+.field {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #34d399;
+  margin-bottom: 8px;
+}
+
+.tick-icon {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+
+.label-text {
+  font-size: 14px;
+}
+
+#aiBubble::before {
+  content: none !important;
+  display: none !important;
+}

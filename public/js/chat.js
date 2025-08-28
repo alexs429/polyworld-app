@@ -1,5 +1,13 @@
 // chat.js
-import { els, addMsg, setSheet, typeStatusMessage, flipToBack,startStatusBlinking, stopStatusBlinking } from "./ui.js";
+import {
+  els,
+  addMsg,
+  setSheet,
+  typeStatusMessage,
+  flipToBack,
+  startStatusBlinking,
+  stopStatusBlinking,
+} from "./ui.js";
 import {
   displayOnchainBalance,
   displayPolistarBalance,
@@ -14,11 +22,17 @@ import {
   mergeSessions,
 } from "./wallet.js";
 import { ENDPOINTS, DEV } from "./config.js";
-import { stopEmberNow, speakWithPolistar, speakWithEmber } from "./speech.js";
+import {
+  setEmberVoice,
+  stopEmberNow,
+  speakWithPolistar,
+  speakWithEmber,
+} from "./speech.js";
 import {
   showEmberPanel,
   onEmberSelected,
   setActiveEmberUI,
+  getActiveEmber,
   restorePolistarUI,
 } from "./embers.js";
 
@@ -222,8 +236,7 @@ async function confirmSwapPolistar(poliAmount) {
     "assistant",
     `You are about to swap ${poliAmount} POLI for ${polistar.toFixed(
       2
-    )} POLISTAR.\n` +
-      `Please type YES to continue, or CANCEL to abort.`
+    )} POLISTAR.\n` + `Please type YES to continue, or CANCEL to abort.`
   );
   typeStatusMessage("Type YES to continue, or CANCEL to abort.");
   setPromptHint("Type YES to continue");
@@ -456,26 +469,6 @@ export function setupPrompt() {
   const btnSend = document.getElementById("btnSend");
   const prompt = els.prompt(); // textarea
 
-  // ---- Ember selection ------------------------------------------------------
-  function speakEmberIntro(role) {
-    let text = "";
-    switch (role) {
-      case "finance":
-        text =
-          "Welcome. I’m your financial Ember. We can explore your goals, investments, or strategies together.";
-        break;
-      case "travel":
-        text =
-          "Hello Traveller. I’m your journey guide. Tell me where you’d like to go or what dreams you carry.";
-        break;
-      case "psychologist":
-        text =
-          "I’m here to listen and reflect. Let’s talk, and we’ll find clarity together.";
-        break;
-    }
-    speakWithEmber(text);
-  }
-
   if (!_burnHooksBound) {
     _burnHooksBound = true;
     // Stop burning when leaving / re-open if you come back and an Ember is active
@@ -488,30 +481,22 @@ export function setupPrompt() {
       }
     });
   }
-  onEmberSelected((role) => {
-    currentSpeaker = role;
-    currentEmber = role;
-    setActiveEmberUI(role); // ⬅️ swap visuals
-    // your existing intro + burn loop
-    (function speakEmberIntro() {
-      let text = "";
-      switch (role) {
-        case "finance":
-          text =
-            "Welcome. I’m your financial Ember. We can explore your goals, investments, or strategies together.";
-          break;
-        case "travel":
-          text =
-            "Hello Traveller. I’m your journey guide. Tell me where you’d like to go or what dreams you carry.";
-          break;
-        case "psychologist":
-          text =
-            "I’m here to listen and reflect. Let’s talk, and we’ll find clarity together.";
-          break;
-      }
-      speakWithEmber(text);
-    })();
-    if (!emberBurnInterval) startEmberBurnLoop();
+  onEmberSelected((id, raw) => {
+    console.log("[select] ember chosen:", id, raw?.voice);
+
+    // 1) set voice BEFORE speaking
+    setEmberVoice(raw?.voice);
+
+    // 2) build greeting (or use raw.greeting)
+    const name = raw?.name || id;
+    const tagline = raw?.persona?.tagline || "";
+    const greeting =
+      raw?.greeting && raw.greeting.trim()
+        ? raw.greeting.trim()
+        : `Hi, I’m ${name}.${tagline ? " " + tagline : ""}`;
+
+    // 3) now speak
+    speakWithEmber(greeting);
   });
 
   // ---- Helpers --------------------------------------------------------------
@@ -541,7 +526,7 @@ export function setupPrompt() {
         params: [message, address],
       });
       startStatusBlinking("Initiating Metamask connection...");
-      
+
       await axios.post(ENDPOINTS.authenticateMetamask, {
         address,
         message,
@@ -565,7 +550,6 @@ export function setupPrompt() {
       showUserAddress();
       await displayPolistarBalance(true);
       await displayOnchainBalance();
-
     } catch (err) {
       console.error("❌ MetaMask login failed:", err);
       alert("MetaMask connection failed. Please try again.");
@@ -652,7 +636,8 @@ export function setupPrompt() {
           speakWithPolistar("Camera is now visible.");
         }
         return true;
-
+      case "mobilelogin":
+        displayDeviceLogin();
       case "clearaddress":
         clearUserAddress();
         displayOnchainBalance();
@@ -701,6 +686,19 @@ export function setupPrompt() {
         return false;
     }
   }
+
+  async function displayDeviceLogin() {
+    const userId = window.currentWalletAddress;
+    const res = await fetch("/api/device/createLoginToken", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    const { deviceUrl } = await res.json();
+    addMsg("qr", deviceUrl.replace('https://app.polyworld.life', 'https://polyworld-2f581.web.app'));
+
+  }
+
 
   async function process(text) {
     const t = (text || "").trim();
@@ -810,7 +808,8 @@ export function setupPrompt() {
     const thinking = document.createElement("div");
     thinking.className =
       "self-center italic text-white/70 px-4 py-2 animate-pulse";
-    thinking.textContent = currentSpeaker.replace("polistar", "poly") + " is thinking...";
+    thinking.textContent =
+      currentSpeaker.replace("polistar", "poly") + " is thinking...";
     els.chatArea().appendChild(thinking);
     els.chatArea().scrollTop = els.chatArea().scrollHeight;
 
@@ -839,7 +838,6 @@ export function setupPrompt() {
     process(prompt.value);
     prompt.value = "";
 
-
     // shrink textarea back to one line
     if (typeof prompt.__pw_autogrow_reset__ === "function") {
       prompt.__pw_autogrow_reset__();
@@ -852,7 +850,6 @@ export function setupPrompt() {
 
   // Send button
   btnSend?.addEventListener("click", handleSend);
-
 
   // Enter sends, Shift+Enter = new line
   prompt?.addEventListener("keydown", (e) => {
@@ -877,7 +874,6 @@ export function setupPrompt() {
 
 // ---- Timed rewards ----------------------------------------------------------
 export function startPolistarTimers() {
-
   // 10s signup gift
   setTimeout(async () => {
     try {
@@ -895,8 +891,8 @@ export function startPolistarTimers() {
       }
       const ok = await mintPolistarReward(travellerId, address, 5);
       if (ok) {
-        typeStatusMessage("🎁 +5 POLISTAR received!");
-        speakWithPolistar("You’ve received 5 polistars for signing in.");
+        typeStatusMessage("🎁 +5 POLYPOINTS received!");
+        speakWithPolistar("You’ve received 5 polypoints for signing in.");
         const hud = document.getElementById("poliAmount");
         if (hud) hud.textContent = 5;
       }
@@ -920,9 +916,9 @@ export function startPolistarTimers() {
 
       const ok = await mintPolistarReward(travellerId, address, 10);
       if (ok) {
-        typeStatusMessage("⏱️ +10 POLISTAR for your attention");
+        typeStatusMessage("⏱️ +10 POLYPOINTS for your attention");
         speakWithPolistar(
-          "You’ve received 10 polistars for spending a moment with me."
+          "You’ve received 10 polypoints for spending a moment with me."
         );
         window.milestoneRewarded["1min"] = true;
 
@@ -949,9 +945,9 @@ export function startPolistarTimers() {
 
       const ok = await mintPolistarReward(travellerId, address, 10);
       if (ok) {
-        typeStatusMessage("⏳ +10 more POLISTAR for your presence");
+        typeStatusMessage("⏳ +10 more POLYPOINTS for your presence");
         speakWithPolistar(
-          "Another 10 polistars, gifted for your continued presence."
+          "Another 10 polypoints, gifted for your continued presence."
         );
         window.milestoneRewarded["3min"] = true;
 
@@ -960,7 +956,6 @@ export function startPolistarTimers() {
         if (el) el.textContent = parseInt(polistar.balance);
         const hud = document.getElementById("poliAmount");
         if (hud) hud.textContent = parseInt(polistar.balance);
-
       }
     } catch (e) {
       console.error("[rewards] 3min gift failed:", e);

@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  function isAdmin() {
+    return request.auth != null && request.auth.token.admin == true;
+  }
+
+  match /databases/{database}/documents {
+
+    // Public config/rates: readable, never writable by clients
+    match /rates/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /config/{doc=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Ledger: server-only
+    match /ledgerEntries/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Embers catalogue: public read, admin write
+    match /embers/{emberId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // User-scoped reads only; all writes via Functions (Admin SDK)
+    match /users/{uid}/tokens/{tokenId} {
+      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
+      allow write: if false;
+    }
+
+    match /users/{uid}/emberSessions/{sid} {
+      allow read: if (request.auth != null && request.auth.uid == uid) || isAdmin();
+      allow write: if false;
+    }
+
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

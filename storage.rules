@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Publicly readable media used by the UI
+    match /embers/{path=**} { allow read: if true;  allow write: if false; }
+    match /rooms/{path=**}  { allow read: if true;  allow write: if false; }
+    
+    match /tts-cache/{path=**}{ allow read: if true; allow write: if false; } // <—
+
+    // Everything else: locked down
+    match /{allPaths=**}    { allow read, write: if false; }
+  }
+}

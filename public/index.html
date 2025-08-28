@@ -14,7 +14,7 @@
       src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"
       defer
     ></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
@@ -25,7 +25,7 @@
     <link rel="stylesheet" href="./css/styles.css" />
 
     <!-- App entrypoint as ES module -->
-     <script type="module" src="/js/auth.js"></script>
+    <script type="module" src="/js/auth.js"></script>
 
     <script type="module" src="./js/main.js"></script>
   </head>
@@ -47,7 +47,7 @@
             alt="Polistar avatar"
             src="images/bots/poly.png"
           />
-          <div class="controls">
+          <div class="controls" id="voiceToggle">
             <button
               id="btnTTS"
               class="icon-btn hud-tts"

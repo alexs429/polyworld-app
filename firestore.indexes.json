@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "ledgerEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "ts",   "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "emberSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "emberId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "embers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "name",   "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

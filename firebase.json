@@ -7,6 +7,7 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "storage": { "rules": "storage.rules" },
   "engines": {
     "node": "18"
   },
@@ -32,6 +33,15 @@
     ],
 
     "rewrites": [
+      {
+        "source": "/api/device/createLoginToken",
+        "function": "createDeviceLoginToken"
+      },
+      {
+        "source": "/api/device/verifyToken",
+        "function": "verifyDeviceLoginToken"
+      },
+      { "source": "/device-login", "destination": "/device-login.html" },
       {
         "source": "/api/authenticateMetamask",
         "function": {

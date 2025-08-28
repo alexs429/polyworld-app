@@ -31,6 +31,10 @@ exports.deleteEmber = require('./embers/deleteEmber').deleteEmber;
 exports.getAllEmbers = require('./embers/getAllEmbers').getAllEmbers;
 exports.getEmberById = require('./embers/getEmberById').getEmberById;
 exports.updateEmber = require('./embers/updateEmber').updateEmber;
+exports.backfillOne = require('./embers/backfillOne').backfillOne;
+exports.mintOne = require('./embers/mintOne').mintOne;
+exports.backfillAndMintOne = require('./embers/backfillAndMintOne').backfillAndMintOne;
+
 
 // 💬 Sessions (chat + teaching)
 exports.createSession = require('./sessions/createSession').createSession;
@@ -48,6 +52,7 @@ exports.buyPoliFromUsdt = require('./web3/buyPoliFromUsdt').buyPoliFromUsdt;
 exports.buildApproveUsdtTx = require('./web3/buildApproveUsdtTx').buildApproveUsdtTx;
 exports.getPoliRate = require('./web3/getPoliRate').getPoliRate;
 
+
 // 🔁 RANDL Protocol Exports
 exports.createToken = require('./randl/handlers/createToken').createToken;
 exports.mintToken = require('./randl/handlers/mintToken').mintToken;
@@ -61,6 +66,7 @@ exports.transferPolistar = require('./randl/handlers/transferPolistar').transfer
 
 // CHAT HANDLER
 exports.chatHandler = require('./handlers/chatHandler').chatHandler;
+exports.ttsEmber = require("./handlers/tts").ttsEmber;
 
 // BRIDGE
 exports.bridgeToken = require('./bridge/bridgeToken').bridgeToken;
@@ -74,6 +80,7 @@ exports.handleTravellerMessage = handleTravellerMessage;
 // 🧪 Seeder
 exports.seedAll = require('./seed/seedAll').seedAll;
 exports.seedSystemConfig = require('./seed/seedSystemConfig').seedSystemConfig;
+exports.seedAllEmbers = require("./src/admin/seedAllEmbers").seedAllEmbers;
 
 // MERGE
 exports.mergeUserSessions = require("./merge/mergeUserSessions").mergeUserSessions;
@@ -85,6 +92,14 @@ exports.authenticateMetamask = require('./metamask/authenticateMetamask').authen
 // Symbolic
 exports.inscribeSymbolicEvent = require("./symbolic/inscribe").inscribeSymbolicEvent;
 exports.onSymbolicEventCreate = require("./symbolic/onSymbolicEventCreate").onSymbolicEventCreate;
+
+// Authentication
+exports.createDeviceLoginToken = require("./device/createDeviceLoginToken.js").createDeviceLoginToken;
+exports.verifyDeviceLoginToken = require("./device/verifyDeviceLoginToken.js").verifyDeviceLoginToken;
+
+exports.backfillEmberMetadataFromFirestore =
+  require("./emberMetadataBackfill").backfillEmberMetadataFromFirestore;
+
 
 // 🚧 Future Express API grouping (optional)
 // exports.api = require('./api');
