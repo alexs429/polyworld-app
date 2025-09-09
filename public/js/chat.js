@@ -2,6 +2,7 @@
 import {
   els,
   addMsg,
+  addSystemMessage,
   setSheet,
   typeStatusMessage,
   flipToBack,
@@ -30,11 +31,15 @@ import {
 } from "./speech.js";
 import {
   showEmberPanel,
+  showMyEmberPanel,
   onEmberSelected,
   setActiveEmberUI,
   getActiveEmber,
   restorePolistarUI,
+  replaceWithTrainingCircle,
+  showAvatarCaptureStep,
 } from "./embers.js";
+import { loadEmbers, loadMyEmbers } from "./render-embers.js";
 
 let hasOfferedEmber = false;
 let currentSpeaker = "polistar";
@@ -44,6 +49,53 @@ let firstResponseSent = false;
 let _burnHooksBound = false;
 // Conversational action state
 let action = { mode: null, step: 0, payload: {}, prevPlaceholder: "" };
+let emberTraining = {
+  active: false,
+  step: 0,
+  data: {},
+};
+window.emberTraining = emberTraining;
+// Map steps → friendly labels
+const stepLabels = {
+  1: "Name",
+  2: "Focus",
+  3: "Avatar",
+  4: "Voice",
+  5: "Identity",
+  6: "Wallet",
+  7: "Persona",
+  8: "Long Description",
+  9: "Mint NFT",
+  10: "Finalize Ember",
+};
+
+export function startEmberTraining() {
+  emberTraining = { active: true, step: 1, data: {} };
+
+  // Status line is short + prominent
+  typeStatusMessage("✨ Raising your Ember - Your name");
+
+  // Input hint guides the format
+  setPromptHint("First + Last Name");
+}
+
+async function persistEmberProgress(emberId, step, partial = {}) {
+  if (!emberId) return;
+  try {
+    await fetch(ENDPOINTS.updateEmber, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        emberId,
+        ...partial,
+        trainingProgress: { step }, // ← canonical progress marker
+        status: "training",
+      }),
+    });
+  } catch (e) {
+    console.warn("persistEmberProgress failed", e);
+  }
+}
 
 function setPromptHint(txt) {
   const ta = els.prompt();
@@ -57,6 +109,13 @@ function resetPromptHint() {
   if (!ta) return;
   ta.placeholder = action.prevPlaceholder || "Type your message…";
   action.prevPlaceholder = "";
+}
+
+function splitFullName(fullName) {
+  const parts = fullName.trim().split(/\s+/);
+  const firstName = parts.shift() || "";
+  const lastName = parts.length > 0 ? parts.join(" ") : "";
+  return { firstName, lastName };
 }
 
 // robust numeric parsing (grabs first decimal number from text)
@@ -602,16 +661,24 @@ export function setupPrompt() {
   async function chatHandlerCall(message) {
     const travellerAddress = window.currentWalletAddress;
     const sessionId = travellerAddress || `guest-${crypto.randomUUID()}`;
+
+    // 🔹 If an Ember is active, send its raw data (with persona).
+    // Otherwise send null so backend can treat it as Polistar.
+    const activeEmber = getActiveEmber()?._raw || null;
+
+    const payload = {
+      message,
+      sessionId,
+      userAddress: travellerAddress,
+      ember: activeEmber, // 🔹 explicit null if no Ember
+    };
+
     const res = await fetch(ENDPOINTS.chatHandler, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        sessionId,
-        userAddress: travellerAddress,
-        ember: currentEmber,
-      }),
+      body: JSON.stringify(payload),
     });
+
     const data = await res.json().catch(() => ({}));
     return (data && data.reply) || "Hmm… I didn’t quite catch that.";
   }
@@ -668,7 +735,11 @@ export function setupPrompt() {
       case "metamask":
         initiateMetaMaskLogin();
         return true;
-
+      case "showmyembers":
+        const uid = (
+          window.POLY_UID || window.currentWalletAddress
+        ).toLowerCase();
+        showMyEmberPanel(uid);
       case "polistarback":
       case "stop":
         currentSpeaker = "polistar";
@@ -695,10 +766,14 @@ export function setupPrompt() {
       body: JSON.stringify({ userId }),
     });
     const { deviceUrl } = await res.json();
-    addMsg("qr", deviceUrl.replace('https://app.polyworld.life', 'https://polyworld-2f581.web.app'));
-
+    addMsg(
+      "qr",
+      deviceUrl.replace(
+        "https://app.polyworld.life",
+        "https://polyworld-2f581.web.app"
+      )
+    );
   }
-
 
   async function process(text) {
     const t = (text || "").trim();
@@ -795,6 +870,415 @@ export function setupPrompt() {
       return;
     }
 
+    if (emberTraining.active) {
+      // echo back Traveller input
+      addMsg("user", t);
+
+      if (t.toLowerCase() === "cancel") {
+        typeStatusMessage("Cancelled Ember training.");
+        emberTraining = { active: false, step: 0, data: {} };
+        resetPromptHint();
+        return;
+      }
+
+      if (emberTraining.step === 1) {
+        emberTraining.data.name = t;
+        emberTraining.step = 2;
+        typeStatusMessage("✨ Raising your Ember — Focus");
+        addMsg(
+          "assistant",
+          "Great. Now type your Ember’s Focus (e.g. Travel, Finance, Personal)."
+        );
+        setPromptHint("Focus (e.g. Travel, Finance, Personal)");
+        return;
+      }
+
+      if (emberTraining.step === 2) {
+        emberTraining.data.focus = t;
+        emberTraining.step = "avatar";
+        startStatusBlinking(
+          "🔥 Forging your Ember’s soul! creating conversational agent…"
+        );
+
+        const fullName = emberTraining.data.name;
+        const { firstName, lastName } = splitFullName(fullName);
+
+        try {
+          const res = await fetch(ENDPOINTS.createEmberAgent, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              firstName,
+              lastName,
+              focus: emberTraining.data.focus,
+              createdBy: window.currentWalletAddress,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+
+          // Backend returns { ok, id, agentId, ... }
+          if (!res.ok || !data?.id) {
+            stopStatusBlinking();
+            addMsg(
+              "assistant",
+              "❌ Couldn’t create the agent. Please try again."
+            );
+            typeStatusMessage("Agent creation failed");
+            emberTraining.step = 2; // keep them on the same step
+            return;
+          }
+
+          // 🔹 store the new id (backend returns id and/or emberId)
+          emberTraining.data.id = data.id || data.emberId;
+
+          // 🔹 move to Avatar (step 3) locally too
+          emberTraining.step = 3;
+
+          stopStatusBlinking();
+          typeStatusMessage("📷 Next: capture your Ember’s avatar");
+          addMsg(
+            "assistant",
+            "Now let’s capture your Ember’s avatar. Please look at your camera (right panel) and click the ➕ in the circle on the left."
+          );
+
+          // Mount the capture circle and bind the click handler
+          replaceWithTrainingCircle();
+          showAvatarCaptureStep(emberTraining.data.id);
+
+          resetPromptHint();
+        } catch (e) {
+          console.error("createEmberAgent failed:", e);
+          stopStatusBlinking();
+          addMsg(
+            "assistant",
+            "❌ Couldn’t create the agent. Please try again."
+          );
+          typeStatusMessage("Agent creation failed");
+          emberTraining.step = 2;
+        }
+        return;
+      }
+
+      if (emberTraining.step === 4 || emberTraining.step === "voice") {
+        const choice = String(t).trim().toLowerCase();
+
+        if (choice !== "male" && choice !== "female") {
+          addMsg("assistant", "❌ Please type MALE or FEMALE.");
+          typeStatusMessage("Type MALE or FEMALE");
+          setPromptHint("Type MALE or FEMALE");
+          return;
+        }
+
+        // Persist voice on backend
+        try {
+          const voice = choice.toUpperCase(); // "MALE" | "FEMALE"
+          await fetch(ENDPOINTS.updateEmberVoice, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              emberId: emberTraining.data.id,
+              voice,
+            }),
+          });
+
+          addMsg("assistant", `✅ Voice set to ${voice}.`);
+          typeStatusMessage("Voice saved");
+
+          // Advance to Step 5 (Identity)
+          emberTraining.step = 5;
+          addMsg(
+            "assistant",
+            "Now let’s complete your Ember’s identity details. Please enter: DOB, Email, Mobile"
+          );
+          setPromptHint("1995-10-20, sam@gmail.com, +61 400 000 000");
+        } catch (e) {
+          console.error("updateEmberVoice failed:", e);
+          addMsg("assistant", "❌ Couldn’t save voice. Please try again.");
+          typeStatusMessage("Save failed — try again");
+        }
+        return;
+      }
+
+      // === Ember Training Flow ===
+      if (emberTraining.step === 3 || emberTraining.step === "avatar") {
+        const choice = t.toLowerCase();
+        console.log(choice);
+        if (choice === "retake") {
+          addMsg(
+            "♻️ Retaking avatar. Please click the ➕ in the circle on the left again."
+          );
+          emberTraining.step = "avatar"; // 🔹 reset step
+          replaceWithTrainingCircle(); // 🔹 restore circle
+          showAvatarCaptureStep(emberTraining.data.id);
+          return;
+        }
+        if (choice === "save") {
+          typeStatusMessage("⏳ Uploading avatar…");
+          const { emberId, dataUrl } = window.currentAvatarDraft || {};
+
+          if (emberId && dataUrl) {
+            const res = await fetch(ENDPOINTS.uploadAvatar, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ emberId, image: dataUrl }),
+            });
+            if (res.ok) {
+              typeStatusMessage("✅ Uploaded successfully");
+              addMsg("system", "✅ Avatar saved. Default background applied.");
+              // ➜ Advance to Voice step and guide the user
+              emberTraining.step = 4;
+              addMsg(
+                "assistant",
+                "Next, choose your Ember’s voice. Please type MALE or FEMALE."
+              );
+              setPromptHint("Type MALE or FEMALE");
+            } else {
+              typeStatusMessage("❌ Upload failed. Please try again.");
+              addMsg("system", "❌ Upload failed. Please try again.");
+              emberTraining.step = "avatar"; // allow retry
+              console.log(res);
+            }
+          }
+          return;
+        }
+      }
+
+      // STEP 5: Identity details (DOB, email, mobile)
+      if (emberTraining.step === 5) {
+        // Expect input in format: DOB, Email, Mobile (you can refine UX later)
+        const parts = t.split(",");
+        if (parts.length < 3) {
+          addMsg(
+            "assistant",
+            "❌ Please provide DOB, Email, Mobile separated by commas."
+          );
+          typeStatusMessage("Enter DOB, Email, Mobile");
+          setPromptHint("1995-10-20, sam@gmail.com, +61 400 000 000");
+          return;
+        }
+
+        const [dob, email, mobile] = parts.map((p) => p.trim());
+        emberTraining.data.dob = dob;
+        emberTraining.data.email = email;
+        emberTraining.data.mobile = mobile;
+
+        addMsg("assistant", "⏳ Saving identity details...");
+        typeStatusMessage("Saving identity...");
+
+        const res = await fetch(ENDPOINTS.updateEmberIdentity, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            emberId: emberTraining.data.id,
+            dob,
+            email,
+            mobile,
+          }),
+        });
+
+        if (res.ok) {
+          addMsg(
+            "assistant",
+            "✅ Identity saved. Do you want to use your current wallet or enter another?"
+          );
+          typeStatusMessage("Confirm wallet address");
+          setPromptHint("Type CURRENT or enter a new 0x address");
+          emberTraining.step = 6;
+        } else {
+          addMsg("assistant", "❌ Failed to save identity. Try again.");
+        }
+        return;
+      }
+
+      // STEP 6: Wallet
+      if (emberTraining.step === 6) {
+        let payoutAddress = null;
+
+        if (t.toLowerCase() === "current") {
+          payoutAddress = window.currentWalletAddress;
+        } else {
+          payoutAddress = t.trim();
+          if (!/^0x[a-fA-F0-9]{40}$/.test(payoutAddress)) {
+            addMsg(
+              "assistant",
+              "❌ Invalid wallet address. Please enter a valid 0x address or type CURRENT."
+            );
+            return;
+          }
+        }
+
+        emberTraining.data.wallet = payoutAddress;
+
+        addMsg("assistant", "⏳ Saving wallet...");
+        typeStatusMessage("Saving wallet...");
+
+        const res = await fetch(ENDPOINTS.updateEmberWallet, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            emberId: emberTraining.data.id,
+            payoutAddress,
+          }),
+        });
+
+        if (res.ok) {
+          addMsg(
+            "assistant",
+            "✅ Wallet saved. Now let’s define your Ember’s persona (tagline, long bio, tone)."
+          );
+          typeStatusMessage("Enter persona details");
+          setPromptHint("Tagline | LongBio | Tone | Description");
+          emberTraining.step = 7;
+        } else {
+          addMsg("assistant", "❌ Failed to save wallet. Try again.");
+        }
+        return;
+      }
+
+      // STEP 7: Persona
+      if (emberTraining.step === 7) {
+        // Expect input in format: tagline | longBio | tone | description
+        const parts = t.split("|");
+        if (parts.length < 4) {
+          addMsg(
+            "assistant",
+            "❌ Please provide: Tagline | LongBio | Tone | Description"
+          );
+          setPromptHint("Tagline | LongBio | Tone | Description");
+          return;
+        }
+
+        const [tagline, longBio, tone, description] = parts.map((p) =>
+          p.trim()
+        );
+        emberTraining.data.persona = { tagline, longBio, tone, description };
+
+        addMsg("assistant", "⏳ Saving persona...");
+        typeStatusMessage("Saving persona...");
+
+        const res = await fetch(ENDPOINTS.updateEmberPersona, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            emberId: emberTraining.data.id,
+            tagline,
+            longBio,
+            tone,
+            description,
+          }),
+        });
+
+        if (res.ok) {
+          addMsg(
+            "assistant",
+            "✅ Persona saved. Please upload a .txt file with a detailed description."
+          );
+          typeStatusMessage("Upload long description file");
+          setPromptHint(" ");
+          emberTraining.step = 8;
+        } else {
+          addMsg("assistant", "❌ Failed to save persona. Try again.");
+        }
+        return;
+      }
+
+      // STEP 8: Long Description file (frontend must trigger handleFileUpload)
+      if (emberTraining.step === 8) {
+        const attachWrapper = document.getElementById("attachWrapper");
+        if (attachWrapper) attachWrapper.style.display = "inline-block";
+
+        // Clear the textarea placeholder (so no "Type your message…")
+        const ta = document.getElementById("prompt");
+        if (ta) ta.placeholder = "";
+        typeStatusMessage("Upload long description file");
+
+        addMsg(
+          "assistant",
+          "📄 Please attach a .txt file with your Ember’s detailed description."
+        );
+        setPromptHint(" ");
+        return;
+      }
+
+      // STEP 9: Mint NFT
+      if (emberTraining.step === 9) {
+        if (t.toLowerCase() !== "mint") {
+          addMsg(
+            "assistant",
+            "✨ Type MINT to confirm creating your Ember NFT (50 POLI required)."
+          );
+          typeStatusMessage("Type MINT to continue");
+          return;
+        }
+
+        addMsg("assistant", "⏳ Minting NFT… This may take a few moments.");
+        typeStatusMessage("Minting...");
+
+        const res = await fetch(ENDPOINTS.mintEmberNFT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            flameId: window.currentWalletAddress, // Flame = trainer wallet
+            emberId: emberTraining.data.id,
+            wallet: window.currentWalletAddress, // NFT ownership wallet
+          }),
+        });
+        if (res.ok) {
+          addMsg(
+            "assistant",
+            "✅ NFT minted successfully! Your Ember is now complete."
+          );
+          typeStatusMessage("Training complete!");
+          emberTraining.step = 10;
+          addMsg(
+            "assistant",
+            "✅ NFT minted. Final step: type FINALIZE to complete training (100 POLI required)."
+          );
+          typeStatusMessage("Ready to finalize Ember");
+          setPromptHint("Type FINALIZE");
+        } else {
+          addMsg("assistant", "❌ Minting failed. Please try again.");
+        }
+        return;
+      }
+    }
+    // STEP 10: Finalize Ember
+    if (emberTraining.step === 10) {
+      if (t.toLowerCase() !== "finalize") {
+        addMsg(
+          "assistant",
+          "✨ Type FINALIZE to complete training and make your Ember public (100 POLI required)."
+        );
+        typeStatusMessage("Type FINALIZE to continue");
+        return;
+      }
+
+      addMsg("assistant", "⏳ Finalizing your Ember…");
+      typeStatusMessage("Finalizing…");
+
+      const res = await fetch(ENDPOINTS.finalizeEmberTraining, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          flameId: window.currentWalletAddress,
+          emberId: emberTraining.data.id,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.ok) {
+        addMsg("assistant", "✅ Your Ember is now finalized and public!");
+        typeStatusMessage("Training complete 🎉");
+        emberTraining.step = "done";
+      } else {
+        addMsg(
+          "assistant",
+          `❌ Finalization failed: ${json?.error || "Please try again."}`
+        );
+        typeStatusMessage("Finalization failed.");
+      }
+      return;
+    }
     // Commands typed directly
     if (runLocalCommand(t.toLowerCase())) {
       // prompt is cleared by caller
@@ -834,6 +1318,27 @@ export function setupPrompt() {
     }
   }
 
+  async function handleFileUpload(file, emberId) {
+    const content = await file.text(); // read as string
+
+    addMsg("assistant", "⏳ Uploading long description...");
+    typeStatusMessage("Uploading file...");
+
+    const res = await fetch(ENDPOINTS.uploadEmberDescription, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emberId, fileContent: content }),
+    });
+
+    if (res.ok) {
+      addMsg("assistant", "✅ File uploaded. Next step: Mint your Ember NFT!");
+      typeStatusMessage("Ready to mint NFT");
+      emberTraining.step = 9;
+    } else {
+      addMsg("assistant", "❌ Upload failed. Please retry.");
+    }
+  }
+
   function handleSend() {
     process(prompt.value);
     prompt.value = "";
@@ -850,6 +1355,18 @@ export function setupPrompt() {
 
   // Send button
   btnSend?.addEventListener("click", handleSend);
+
+  document
+    .getElementById("emberFileUpload")
+    .addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        await handleFileUpload(file, emberTraining.data.id);
+
+        // hide after upload
+        document.getElementById("attachWrapper").style.display = "none";
+      }
+    });
 
   // Enter sends, Shift+Enter = new line
   prompt?.addEventListener("keydown", (e) => {
@@ -868,8 +1385,162 @@ export function setupPrompt() {
     runLocalCommand(cmd);
   });
 
+  window.addEventListener("pw:resume-training-step", (e) => {
+    const { step, ember } = e.detail;
+    emberTraining.active = true;
+    emberTraining.step = step;
+    emberTraining.data.id = ember.id;
+
+    // 🔹 Add progress counter
+    const progressText = stepLabels[step]
+      ? `Step ${step} of 9 — ${stepLabels[step]}`
+      : "Training complete";
+
+    switch (step) {
+      case 1:
+        addMsg("assistant", "Resume training: Please type the your Name:");
+        typeStatusMessage(progressText);
+        setPromptHint("First + Last name");
+        break;
+
+      case 2:
+        addMsg("assistant", "Resume training: What is this Ember’s Focus?");
+        typeStatusMessage(progressText);
+        setPromptHint("e.g. Travel, Finance, Personal");
+        break;
+
+      case 3:
+        addMsg(
+          "assistant",
+          "Resume training: Let’s capture your Ember’s Avatar."
+        );
+        typeStatusMessage(progressText);
+
+        // Make sure the circle exists and the handler is wired with the right id
+        replaceWithTrainingCircle();
+        showAvatarCaptureStep(emberTraining.data.id || ember.id);
+        break;
+
+      case 4:
+        addMsg(
+          "assistant",
+          "Next step: Please type MALE or FEMALE for your Ember’s voice."
+        );
+        typeStatusMessage(progressText);
+        setPromptHint("Type MALE or FEMALE");
+        break;
+
+      case 5:
+        addMsg(
+          "assistant",
+          "Now let’s complete your Ember’s identity details. Please enter: DOB, Email, Mobile"
+        );
+        typeStatusMessage(progressText);
+        setPromptHint("1995-10-20, sam@gmail.com, +61 400 000 000");
+        break;
+
+      case 6:
+        addMsg(
+          "assistant",
+          "Identity saved. Do you want to use your current wallet or enter another?"
+        );
+        typeStatusMessage(progressText);
+        setPromptHint("Type CURRENT or enter a new 0x address");
+        break;
+
+      case 7:
+        addMsg(
+          "assistant",
+          "Now let’s define your Ember’s persona (tagline, long bio, tone)."
+        );
+        typeStatusMessage(progressText);
+        setPromptHint("Tagline | LongBio | Tone | Description");
+        break;
+
+      case 8:
+        addMsg(
+          "assistant",
+          "Please upload a .txt file with your Ember’s detailed description."
+        );
+        typeStatusMessage(progressText);
+        document.getElementById("attachWrapper").style.display = "inline-block";
+        setPromptHint(" ");
+        break;
+
+      case 9:
+        addMsg(
+          "assistant",
+          "Type MINT to create your Ember NFT (50 POLI required)."
+        );
+        typeStatusMessage(progressText);
+        setPromptHint("Type MINT");
+        break;
+
+      default:
+        addMsg("assistant", "✅ Training already complete!");
+        typeStatusMessage("Training complete");
+        break;
+    }
+  });
+
+  window.addEventListener("pw:system-msg", (e) => {
+    if (e.detail?.html) {
+      addSystemMessage(e.detail.html);
+    }
+  });
+
+  window.addEventListener("pw:set-prompt-hint", (e) => {
+    setPromptHint(e.detail?.text || "");
+  });
+
+  window.addEventListener("pw:status", (e) => {
+    if (e.detail?.message) {
+      typeStatusMessage(e.detail.message);
+    }
+  });
+
+  window.addEventListener("pw:resume-training", (e) => {
+    const ember = e.detail.ember;
+    emberTraining.active = true;
+    emberTraining.data = { id: ember.id };
+
+    if (!ember.identity?.firstName || !ember.identity?.lastName) {
+      emberTraining.step = 1;
+      typeStatusMessage("✨ Continue training — Name");
+      addMsg("Resume training: Please type your Name:");
+      setPromptHint("First + Last name");
+      return;
+    }
+
+    if (!ember.focus) {
+      emberTraining.step = 2;
+      typeStatusMessage("✨ Continue training — Focus");
+      addMsg("Resume training: What is this Ember’s Focus?");
+      setPromptHint("e.g. Travel, Finance, Personal");
+      return;
+    }
+
+    emberTraining.step = "avatar";
+    typeStatusMessage("📷 Next step — capture your Ember’s avatar");
+    addMsg(
+      "assistant",
+      "Now let’s capture your Ember’s Avatar and Background."
+    );
+    window.dispatchEvent(new CustomEvent("pw:show-avatar-step"));
+  });
+
   // Toolbar/elsewhere can trigger MetaMask connect
   window.addEventListener("pw:connect-metamask", initiateMetaMaskLogin);
+  window.addEventListener("pw:run-cmd", (e) => {
+    const { cmd } = e.detail || {};
+    if (cmd === "showembers") {
+      loadEmbers();
+    } else if (cmd === "myembers") {
+      const uid =
+        window.POLY_UID || localStorage.getItem("poly_uid") || "TEST_UID";
+      loadMyEmbers(uid);
+    }
+  });
 }
 
 // ---- Timed rewards ----------------------------------------------------------

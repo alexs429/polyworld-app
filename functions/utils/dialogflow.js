@@ -2,7 +2,7 @@
 const { v4: uuidv4 } = require("uuid");
 const { SessionsClient } = require("@google-cloud/dialogflow-cx");
 
-exports.sendToDialogflow = async (sessionId, message, agentConfig) => {
+exports.sendToDialogflow = async (sessionId, message, agentConfig, emberPersona = null) => {
   console.log("💬 sendToDialogflow called");
 
   try {
@@ -34,11 +34,25 @@ exports.sendToDialogflow = async (sessionId, message, agentConfig) => {
       resolvedSessionId
     );
 
+    // 🔹 Build persona payload (safe defaults if not provided)
+    const personaParams = emberPersona
+      ? {
+          persona_tagline: emberPersona.tagline || "",
+          persona_longBio: emberPersona.longBio || "",
+          persona_tone: emberPersona.tone || "",
+          persona_description: emberPersona.description || "",
+          persona_full: `You are ${emberPersona.description}. Speak in a ${emberPersona.tone} style. Bio: ${emberPersona.longBio}`,
+        }
+      : {};
+
     const request = {
       session: sessionPath,
       queryInput: {
         text: { text: message },
         languageCode,
+      },
+      queryParams: {
+        parameters: personaParams, // ✅ safe empty object if none
       },
     };
 
@@ -46,7 +60,6 @@ exports.sendToDialogflow = async (sessionId, message, agentConfig) => {
 
     // Extract usable reply
     const messages = response.queryResult?.responseMessages || [];
-    // Extract reply from standard text messages
     let reply = "[No response from Polistar]";
 
     for (const msg of messages) {
@@ -56,10 +69,6 @@ exports.sendToDialogflow = async (sessionId, message, agentConfig) => {
       }
       if (msg.payload?.fields?.reply?.stringValue) {
         reply = msg.payload.fields.reply.stringValue;
-        break;
-      }
-      if (msg.text?.text?.length > 0) {
-        reply = msg.text.text[0];
         break;
       }
     }

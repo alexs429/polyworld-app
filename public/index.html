@@ -138,12 +138,25 @@
         <div class="status-line" id="statusLine">Waiting…</div>
         <div class="composer" role="group" aria-label="Message composer">
           <button id="btnPlus" class="btnGreen" title="Functions">＋</button>
+
+          <!-- Attach button (hidden by default) -->
+          <label id="attachWrapper" style="display: none">
+            <input
+              type="file"
+              id="emberFileUpload"
+              accept=".txt"
+              style="display: none"
+            />
+            <span class="btn" title="Attach file">📎</span>
+          </label>
+
           <textarea
             id="prompt"
             rows="1"
             placeholder="Type your message…"
             autocomplete="off"
           ></textarea>
+
           <button id="btnMic" class="btn" aria-pressed="false" title="Speak">
             🎙️
           </button>
@@ -243,6 +256,16 @@
               ✨
             </button>
             <span class="pw-tool-txt">Embers</span>
+          </div>
+          <div class="pw-tool-item" id="toolMyEmbers">
+            <button
+              class="pw-tool"
+              data-cmd="showmyembers"
+              aria-label="My Embers"
+            >
+              🌱
+            </button>
+            <span class="pw-tool-txt">My Embers</span>
           </div>
         </div>
       </div>

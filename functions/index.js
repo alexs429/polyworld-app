@@ -34,7 +34,15 @@ exports.updateEmber = require('./embers/updateEmber').updateEmber;
 exports.backfillOne = require('./embers/backfillOne').backfillOne;
 exports.mintOne = require('./embers/mintOne').mintOne;
 exports.backfillAndMintOne = require('./embers/backfillAndMintOne').backfillAndMintOne;
-
+exports.createEmberAgent = require('./embers/createEmberAgent').createEmberAgent;
+exports.uploadAvatar = require("./embers/uploadAvatar").uploadAvatar;
+exports.updateEmberVoice = require("./embers/updateEmberVoice").updateEmberVoice;
+exports.updateEmberIdentity = require("./embers/updateEmberIdentity").updateEmberIdentity;
+exports.updateEmberWallet = require("./embers/updateEmberWallet").updateEmberWallet;
+exports.updateEmberPersona = require("./embers/updateEmberPersona").updateEmberPersona;
+exports.uploadEmberDescription = require("./embers/uploadEmberDescription").uploadEmberDescription;
+exports.mintEmberNFT = require("./embers/mintEmberNFT").mintEmberNFT;
+exports.finalizeEmberTraining = require("./embers/finalizeEmberTraining").finalizeEmberTraining;
 
 // 💬 Sessions (chat + teaching)
 exports.createSession = require('./sessions/createSession').createSession;

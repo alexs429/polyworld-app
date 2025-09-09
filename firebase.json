@@ -50,6 +50,69 @@
         }
       },
       {
+        "source": "/api/createEmberAgent",
+        "function": {
+          "functionId": "createEmberAgent",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/updateEmberVoice",
+        "function": {
+          "functionId": "updateEmberVoice",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/uploadAvatar",
+        "function": {
+          "functionId": "uploadAvatar",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/updateEmberIdentity",
+        "function": {
+          "functionId": "updateEmberIdentity",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/uploadEmberDescription",
+        "function": {
+          "functionId": "uploadEmberDescription",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/updateEmberWallet",
+        "function": {
+          "functionId": "updateEmberWallet",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/updateEmberPersona",
+        "function": {
+          "functionId": "updateEmberPersona",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/mintEmberNFT",
+        "function": {
+          "functionId": "mintEmberNFT",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/finalizeEmberTraining",
+        "function": {
+          "functionId": "finalizeEmberTraining",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "/api/bridgeToken",
         "function": { "functionId": "bridgeToken", "region": "us-central1" }
       },

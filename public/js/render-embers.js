@@ -3,6 +3,7 @@ import {
   collection,
   getDocs,
   query,
+  where,
   orderBy,
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
@@ -18,6 +19,17 @@ function el(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
+}
+
+function emptyCardTemplate() {
+  return el(`
+    <div class="ember-card ember-empty">
+      <div class="meta">
+        <h3>+ Create New Ember</h3>
+        <p class="tagline">Begin raising your own Ember</p>
+      </div>
+    </div>
+  `);
 }
 
 function renderCardSkeleton() {
@@ -68,6 +80,61 @@ function cardTemplate(ember) {
   `);
 }
 
+export async function loadMyEmbers(userId) {
+  console.log("loadMyEmbers", "here");
+  const wrap = document.getElementById("embersGrid");
+  if (!wrap) return;
+  console.log("loadMyEmbers1", "here");
+  // skeletons
+  for (let i = 0; i < 2; i++) wrap.appendChild(renderCardSkeleton());
+
+  // fetch embers created by this user
+  const snap = await getDocs(
+    query(
+      collection(db, "embers"),
+      where("createdBy", "==", userId),
+      orderBy("name")
+    )
+  );
+  const embers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  wrap.innerHTML = ""; // clear skeletons
+
+  for (const e of embers) {
+    const card = cardTemplate(e);
+
+    // resolve images
+    const avatarEl = card.querySelector("img.avatar");
+    const avatarGs = e?.media?.avatarUrl;
+    const bgGs = e?.room?.backgroundUrl;
+    if (e?.room?.accent) card.style.setProperty("--accent", e.room.accent);
+
+    try {
+      if (avatarGs) avatarEl.src = await gsToHttp(avatarGs);
+      if (bgGs)
+        card.style.setProperty("--bg", `url('${await gsToHttp(bgGs)}')`);
+    } catch (err) {
+      console.warn("Image resolve failed", err);
+    }
+
+    // wire start button
+    const price = e?.pricing?.polistarPerSession ?? 0;
+    card
+      .querySelector("button.start")
+      ?.addEventListener("click", () => startSession(e.id, price));
+
+    wrap.appendChild(card);
+  }
+
+  // always append one empty card
+  const emptyCard = emptyCardTemplate();
+  emptyCard.addEventListener("click", () => {
+    alert("Start Ember creation flow here");
+    // later: open modal / redirect to creation page
+  });
+  wrap.appendChild(emptyCard);
+}
+
 async function startSession(emberId, cost) {
   const uid = getUid();
   try {
@@ -85,7 +152,7 @@ async function startSession(emberId, cost) {
   }
 }
 
-async function loadEmbers() {
+export async function loadEmbers() {
   const wrap = document.getElementById("embersGrid");
   if (!wrap) return;
 
@@ -126,3 +193,4 @@ async function loadEmbers() {
 }
 
 window.addEventListener("DOMContentLoaded", loadEmbers);
+

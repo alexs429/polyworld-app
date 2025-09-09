@@ -13,6 +13,15 @@ export const ENDPOINTS = {
   bridgeToken: `${GCF}/bridgeToken`,
   transferPolistar: `${GCF}/transferPolistar`,
   burnToken: `${GCF}/burnToken`,
+  createEmberAgent: `${GCF}/createEmberAgent`,
+  updateEmberVoice: `${GCF}/updateEmberVoice`,
+  uploadAvatar: `${GCF}/uploadAvatar`,
+  updateEmberIdentity: `${GCF}/updateEmberIdentity`,
+  uploadEmberDescription: `${GCF}/uploadEmberDescription`,
+  updateEmberWallet: `${GCF}/updateEmberWallet`,
+  updateEmberPersona: `${GCF}/updateEmberPersona`,
+  mintEmberNFT: `${GCF}/mintEmberNFT`,
+  finalizeEmberTraining: `${GCF}/finalizeEmberTraining`,
 };
 
 export const DEV = {

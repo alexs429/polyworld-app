@@ -1,6 +1,7 @@
 import "./auth.js"; // exposes window.authReady / window.getIdTokenimport "./auth.js";
 import { typeStatusMessage, setSheet } from "./ui.js";
 import { loadExistingUser, showUserAddress } from "./wallet.js";
+import { updateMyEmbersVisibility } from "./toolbar-extra.js";
 import { displayPolistarBalance, getPolistarBalance } from "./balances.js";
 import { initCamera } from "./camera.js";
 import { setupPrompt } from "./chat.js";
@@ -42,6 +43,9 @@ window.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
       getPolistarBalance(window.currentWalletAddress);
       displayPolistarBalance(false);
+
+      // 2) directly toggle My Embers visibility NOW
+      updateMyEmbersVisibility(window.currentWalletAddress);
 
       speakWithPolistar(
         "Greetings, Traveller. I am Poly… born of flame and thought. Ask, and I shall listen."

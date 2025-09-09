@@ -152,3 +152,12 @@ export function setSheet(open) {
 export function flipToBack(open) {
   els.flipInner()?.classList.toggle("flipped", !!open);
 }
+
+export function addSystemMessage(html) {
+  const chat = els.chatArea();
+  const div = document.createElement("div");
+  div.className = "chat-msg system";
+  div.innerHTML = `<div class="msg-text">${html}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}

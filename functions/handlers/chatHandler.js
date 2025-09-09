@@ -1,4 +1,3 @@
-// functions/handlers/chatHandler.js
 const functions = require("firebase-functions");
 const cors = require("cors")({ origin: true });
 const { verifyWallet } = require("../utils/blockchain");
@@ -7,7 +6,6 @@ const { sendToDialogflow } = require("../utils/dialogflow");
 const { getAgentConfig } = require("../utils/agentConfig");
 
 exports.chatHandler = functions.https.onRequest((req, res) => {
-  // Always return the cors() Promise so CF tracks completion
   return cors(req, res, async () => {
     try {
       if (req.method === "OPTIONS") {
@@ -19,15 +17,14 @@ exports.chatHandler = functions.https.onRequest((req, res) => {
 
       const { userAddress, message, sessionId, ember } = req.body || {};
 
-      // Validate input (sessionId + message are required; userAddress optional)
       if (!sessionId || !message || !String(message).trim()) {
         return res.status(400).json({ error: "Missing sessionId or message" });
       }
 
-      // Resolve agent config from Firestore (async)
-      const agentConfig = await getAgentConfig(ember || "polistar");
+      // 🔹 Load agent config (ember-specific or Polistar default)
+      const agentConfig = await getAgentConfig(ember?.id || "polistar");
 
-      // Optional: verify wallet if provided
+      // 🔹 Optional: verify wallet
       if (userAddress) {
         const verified = await verifyWallet(userAddress);
         if (!verified) {
@@ -35,17 +32,21 @@ exports.chatHandler = functions.https.onRequest((req, res) => {
         }
       }
 
-      // Call Dialogflow CX (fallback to POLISTAR on error)
+      // 🔹 Persona payload (null if not available)
+      const persona = ember?.persona || null;
+
       let reply;
       try {
-        reply = await sendToDialogflow(sessionId, message, agentConfig);
+        reply = await sendToDialogflow(sessionId, message, agentConfig, persona);
       } catch (err) {
         console.error("❌ Ember agent failed, falling back to POLISTAR", err);
-        const fallbackConfig = await getAgentConfig("polistar"); // <-- await here
-        reply = await sendToDialogflow(sessionId, message, fallbackConfig);
+
+        const fallbackConfig = await getAgentConfig("polistar");
+        // 🔹 Always call with 4th param → null for Polistar
+        reply = await sendToDialogflow(sessionId, message, fallbackConfig, null);
       }
 
-      // Persist the turn
+      // 🔹 Persist session turn
       await storeSession(sessionId, message, reply);
 
       return res.status(200).json({ reply });
